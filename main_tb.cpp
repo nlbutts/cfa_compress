@@ -39,6 +39,7 @@ int main(int argc, char ** argv)
 
     cv::imwrite("ref.png", outimg);
     cfaComp.compare_images(inimg, outimg);
+    cfaComp.save_vector<uint8_t>("comp.cfa", comp_data);
 
     // int size;
     // cv::Mat img = cv::imread(argv[1], -1);

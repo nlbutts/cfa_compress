@@ -8,7 +8,13 @@
 class CfaComp
 {
 public:
-    CfaComp(IRice & compressor);
+    /**
+     * @brief Construct a new Cfa Comp object
+     *
+     * @param compressor the compressor to use
+     * @param debug true to enable additional debug output
+     */
+    CfaComp(IRice & compressor, bool debug = false);
     ~CfaComp();
 
     /**
@@ -39,6 +45,23 @@ public:
      * @return int 0 if good, non zero if not.
      */
     int compare_images(cv::Mat img1, cv::Mat img2);
+
+    /**
+     * @brief Debug function to save a vector to a file
+     * I hate C++ file I/O, hence the C style file I/O
+     *
+     * @tparam T vector type
+     * @param filename name of the file to save
+     * @param pkg reference to a vector
+     */
+    template<typename T>
+    void save_vector(std::string filename, std::vector<T> &pkg)
+    {
+        printf("Saving vector to file %s\n", filename.c_str());
+        FILE * f = fopen(filename.c_str(), "wb");
+        fwrite(pkg.data(), sizeof(pkg[0]), pkg.size(), f);
+        fclose(f);
+    }
 
 private:
     /**
@@ -72,23 +95,6 @@ private:
     void append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t> &comp_data);
 
     /**
-     * @brief Debug function to save a vector to a file
-     * I hate C++ file I/O, hence the C style file I/O
-     *
-     * @tparam T vector type
-     * @param filename name of the file to save
-     * @param pkg reference to a vector
-     */
-    template<typename T>
-    void save_vector(std::string filename, std::vector<T> &pkg)
-    {
-        printf("Saving vector to file %s\n", filename.c_str());
-        FILE * f = fopen(filename.c_str(), "wb");
-        fwrite(pkg.data(), sizeof(pkg[0]), pkg.size(), f);
-        fclose(f);
-    }
-
-    /**
      * @brief Verify the header
      *
      * @param header pointer to the header
@@ -116,6 +122,7 @@ private:
 
 private:
     IRice * _rice;  // Callee owns this
+    bool    _debug; // Enable debug output
 };
 
 #endif //_CFA_COMP_H_

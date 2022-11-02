@@ -2,8 +2,9 @@
 #include <boost/crc.hpp>
 #include <stdint.h>
 
-CfaComp::CfaComp(IRice & compressor)
+CfaComp::CfaComp(IRice & compressor, bool debug)
 : _rice(&compressor)
+, _debug(debug)
 {
 
 }
@@ -74,17 +75,13 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     header.channel_size[2] = comp_size[2];
     header.channel_size[3] = comp_size[3];
     auto src = (uint8_t*)&header;
-    //std::vector<uint8_t> pkg(src, src + sizeof(header));
     compimg.clear();
     compimg.insert(compimg.begin(), src, src + sizeof(CfaCompData));
-    //compimg(src, src + sizeof(BayerComp));
 
     append_comp_channel(compimg, comp_data[0]);
     append_comp_channel(compimg, comp_data[1]);
     append_comp_channel(compimg, comp_data[2]);
     append_comp_channel(compimg, comp_data[3]);
-
-    //save_vector<uint8_t>(outputfile, pkg);
 
     float cr = (float)compimg.size() / (total_pixels * 2);
     cr *= 100;
@@ -143,11 +140,14 @@ int CfaComp::decompress(std::vector<uint8_t> &compimg, cv::Mat &outimg)
             _rice->decompress(temp, decomp_data[i], uncompressed_size);
             diff_to_int16(decomp_data[i]);
             src += header->channel_size[i];
-            // std::stringstream ss;
-            // ss << "test";
-            // ss << i;
-            // ss << ".bin";
-            // save_vector<int16_t>(ss.str(), decomp_data[i]);
+            if (_debug)
+            {
+                std::stringstream ss;
+                ss << "test";
+                ss << i;
+                ss << ".bin";
+                save_vector<int16_t>(ss.str(), decomp_data[i]);
+            }
         }
 
         printf("Assembling image\n");
