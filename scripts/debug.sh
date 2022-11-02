@@ -1,3 +1,3 @@
 #!/bin/bash
-gdb -tui --command=gdbinit ref
+gdb -tui --command=gdbinit ../ref
 
