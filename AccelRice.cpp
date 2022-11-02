@@ -333,3 +333,18 @@ int Rice_Compress_accel( hls::stream<int16_t> &indata,
 #pragma HLS INTERFACE axis port=outdata
     return Rice_Compress(indata, outdata, insize, k);
 }
+
+AccelRice::compress
+
+int AccelRice::compress( std::vector<int16_t> &in,
+                         std::vector<uint8_t> &out)
+{
+
+}
+
+void AccelRice::decompress( std::vector<uint8_t> &in,
+                            std::vector<int16_t> &out,
+                            uint32_t uncompressedSize)
+{
+    // Do nothing. Use the CPU implementation
+}

@@ -29,8 +29,8 @@
 * marcus.geelnard at home.se
 *************************************************************************/
 
-#ifndef _rice_h_
-#define _rice_h_
+#ifndef _RICE_H_
+#define _RICE_H_
 
 #include "IRice.h"
 
@@ -71,4 +71,4 @@ public:
 };
 
 
-#endif /* _rice_h_ */
+#endif /* _RICE_H_ */
