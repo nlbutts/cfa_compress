@@ -1,7 +1,9 @@
 #ifndef _BAYER_COMP_STRUCT_H_
 #define _BAYER_COMP_STRUCT_H_
 
-struct BayerComp
+#include <stdint.h>
+
+struct CfaCompData
 {
     char type[7];   // CFAC001
     uint8_t channels;
