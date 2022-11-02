@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "opencv2/opencv.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgcodecs/imgcodecs.hpp"
+//#include "opencv2/imgproc/imgproc.hpp"
+//#include "opencv2/highgui/highgui.hpp"
+//#include "opencv2/imgcodecs/imgcodecs.hpp"
 
 #include "rice.h"
 #include <boost/crc.hpp>
@@ -41,12 +41,13 @@
  * @param comp_data pointer to the compressed data
  * @param comp_size size of the compressed data
  */
-void append_comp_channel(std::vector<uint8_t> &pkg, uint8_t * comp_data, int comp_size)
+void append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t> &comp_data)
 {
-    for (int i = 0; i < comp_size; i++)
-    {
-        pkg.push_back(comp_data[i]);
-    }
+    pkg.insert(pkg.end(), comp_data.begin(), comp_data.end());
+    // for (int i = 0; i < comp_size; i++)
+    // {
+    //     pkg.push_back(comp_data[i]);
+    // }
 }
 
 /**
@@ -76,11 +77,12 @@ std::vector<uint8_t> compress_ref(cv::Mat &img)
 {
     int total_pixels = img.rows * img.cols;
     std::vector<int16_t> channels[4];
-    uint8_t * comp_data[4];
-    comp_data[0] = (uint8_t*)malloc(total_pixels/2);
-    comp_data[1] = (uint8_t*)malloc(total_pixels/2);
-    comp_data[2] = (uint8_t*)malloc(total_pixels/2);
-    comp_data[3] = (uint8_t*)malloc(total_pixels/2);
+    std::vector<uint8_t> comp_data[4];
+    // uint8_t * comp_data[4];
+    // comp_data[0] = (uint8_t*)malloc(total_pixels/2);
+    // comp_data[1] = (uint8_t*)malloc(total_pixels/2);
+    // comp_data[2] = (uint8_t*)malloc(total_pixels/2);
+    // comp_data[3] = (uint8_t*)malloc(total_pixels/2);
 
     // Split the bayer image into RGGB planes
     uint16_t prev_pixel[4];
@@ -103,17 +105,19 @@ std::vector<uint8_t> compress_ref(cv::Mat &img)
         }
     }
 
+    Rice rice;
+
     // Now compress
     int comp_size[4];
     for (int ch = 0; ch < 4; ch++)
     {
-        comp_size[ch] = Rice_Compress((void*)channels[ch].data(),
-                                      comp_data[ch],
-                                      channels[ch].size() * 2,
-                                      RICE_FMT_INT16);
-        printf("data: %08X  size: %d  comp_size: %d\n",
-                channels[ch].data(),
-                channels[ch].size(),
+        comp_size[ch] = rice.compress(channels[ch], comp_data[ch]);
+        // comp_size[ch] = Rice_Compress((void*)channels[ch].data(),
+        //                               comp_data[ch],
+        //                               channels[ch].size() * 2,
+        //                               RICE_FMT_INT16);
+        printf("size: %d  comp_size: %d\n",
+                (int)channels[ch].size(),
                 comp_size[ch]);
     }
 
@@ -138,17 +142,12 @@ std::vector<uint8_t> compress_ref(cv::Mat &img)
     auto src = (uint8_t*)&header;
     std::vector<uint8_t> pkg(src, src + sizeof(header));
 
-    append_comp_channel(pkg, comp_data[0], comp_size[0]);
-    append_comp_channel(pkg, comp_data[1], comp_size[1]);
-    append_comp_channel(pkg, comp_data[2], comp_size[2]);
-    append_comp_channel(pkg, comp_data[3], comp_size[3]);
+    append_comp_channel(pkg, comp_data[0]);
+    append_comp_channel(pkg, comp_data[1]);
+    append_comp_channel(pkg, comp_data[2]);
+    append_comp_channel(pkg, comp_data[3]);
 
     save_vector<uint8_t>("comp.cfa", pkg);
-
-    free(comp_data[0]);
-    free(comp_data[1]);
-    free(comp_data[2]);
-    free(comp_data[3]);
 
     return pkg;
 }
@@ -189,9 +188,10 @@ bool verifyHeader(BayerComp * header)
  * @param data pointer to the data
  * @param size size of the data in bytes
  */
-void diff_to_int16(int16_t * data, int size)
+//void diff_to_int16(int16_t * data, int size)
+void diff_to_int16(std::vector<int16_t> &data)
 {
-    for (int i = 1; i < (size/2); i++)
+    for (int i = 1; i < data.size(); i++)
     {
         data[i] = data[i - 1] + data[i];
     }
@@ -209,27 +209,31 @@ cv::Mat decompress_ref(std::vector<uint8_t> &comp_data, std::string filename)
     cv::Mat img;
     BayerComp * header = (BayerComp *)comp_data.data();
 
+    Rice rice;
+
     if (verifyHeader(header))
     {
         auto src = comp_data.data() + sizeof(BayerComp);
-        int16_t * decomp_data[4];
+        //int16_t * decomp_data[4];
+        std::vector<int16_t> decomp_data[4];
         int uncompressed_size = header->width * header->height * 2 / 4;
         for (int i = 0; i < header->channels; i++)
         {
-            decomp_data[i] = (int16_t*)malloc(uncompressed_size);
-            Rice_Uncompress(src,
-                            decomp_data[i],
-                            header->channel_size[i],
-                            uncompressed_size,
-                            RICE_FMT_INT16);
-            diff_to_int16(decomp_data[i], uncompressed_size);
+            std::vector<uint8_t> temp(src, src + header->channel_size[i]);
+            //decomp_data[i] = (int16_t*)malloc(uncompressed_size);
+            rice.decompress(temp, decomp_data[i], uncompressed_size);
+            // Rice_Uncompress(src,
+            //                 decomp_data[i],
+            //                 header->channel_size[i],
+            //                 uncompressed_size,
+            //                 RICE_FMT_INT16);
+            diff_to_int16(decomp_data[i]);
             src += header->channel_size[i];
-            // std::vector<uint16_t> test(decomp_data[i], decomp_data[i] + uncompressed_size/2);
-            // std::stringstream ss;
-            // ss << "test";
-            // ss << i;
-            // ss << ".bin";
-            // save_vector<uint16_t>(ss.str(), test);
+            std::stringstream ss;
+            ss << "test";
+            ss << i;
+            ss << ".bin";
+            save_vector<int16_t>(ss.str(), decomp_data[i]);
         }
 
         printf("Assembling image\n");
@@ -248,11 +252,6 @@ cv::Mat decompress_ref(std::vector<uint8_t> &comp_data, std::string filename)
         }
 
         cv::imwrite("ref.png", img);
-
-        free(decomp_data[0]);
-        free(decomp_data[1]);
-        free(decomp_data[2]);
-        free(decomp_data[3]);
     }
     return img;
 }
@@ -268,14 +267,23 @@ cv::Mat decompress_ref(std::vector<uint8_t> &comp_data, std::string filename)
  */
 int compare_images(cv::Mat img1, cv::Mat img2)
 {
+    cv::Mat temp1;
+    cv::Mat temp2;
+    img1.convertTo(temp1, CV_32F);
+    img2.convertTo(temp2, CV_32F);
     int result = -1;
     cv::Mat diff;
-    cv::subtract(img1, img2, diff);
+    cv::subtract(temp1, temp2, diff);
     auto sum = cv::sum(diff);
-    printf("Sum of diff: %f\n", sum);
+    printf("Sum of diff: %f\n", sum.val[0]);
     if ((-0.1 < sum.val[0]) && (sum.val[0] < 0.1))
     {
+        printf("IMAGES MATCH\n");
         result = 0;
+    }
+    else
+    {
+        printf("FAILURE: Images are different\n");
     }
     return result;
 }

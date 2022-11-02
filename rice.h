@@ -32,10 +32,7 @@
 #ifndef _rice_h_
 #define _rice_h_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "IRice.h"
 
 /*************************************************************************
 * Supported binary formats
@@ -54,14 +51,24 @@ extern "C" {
 /*************************************************************************
 * Function prototypes
 *************************************************************************/
+class Rice : public IRice
+{
+public:
+   Rice();
+   virtual ~Rice();
 
-int Rice_Compress( void *in, void *out, unsigned int insize, int format );
-void Rice_Uncompress( void *in, void *out, unsigned int insize,
-                      unsigned int outsize, int format );
+   int compress( std::vector<int16_t> &in,
+                 std::vector<uint8_t> &out);
+
+   void decompress( std::vector<uint8_t> &in,
+                    std::vector<int16_t> &out,
+                    uint32_t uncompressedSize);
 
 
-#ifdef __cplusplus
-}
-#endif
+   // int Rice_Compress( void *in, void *out, unsigned int insize, int format );
+   // void Rice_Uncompress( void *in, void *out, unsigned int insize,
+   //                    unsigned int outsize, int format );
+};
+
 
 #endif /* _rice_h_ */

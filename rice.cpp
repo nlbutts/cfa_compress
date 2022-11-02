@@ -582,3 +582,36 @@ void Rice_Uncompress( void *in, void *out, unsigned int insize,
         }
     }
 }
+
+Rice::Rice()
+{
+    // Do nothing
+}
+
+Rice::~Rice()
+{
+    // Do nothing
+}
+
+int Rice::compress( std::vector<int16_t> &in,
+                    std::vector<uint8_t> &out)
+{
+    // Make out as large as the input data
+    out.resize(in.size());
+    int outsize = Rice_Compress(in.data(), out.data(), in.size() * 2, RICE_FMT_INT16);
+    out.resize(outsize);
+    return outsize;
+}
+
+void Rice::decompress( std::vector<uint8_t> &in,
+                       std::vector<int16_t> &out,
+                       uint32_t uncompressedSize)
+{
+    out.resize(uncompressedSize);
+    Rice_Uncompress(in.data(),
+                    out.data(),
+                    in.size(),
+                    uncompressedSize,
+                    RICE_FMT_INT16);
+}
+
