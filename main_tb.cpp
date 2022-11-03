@@ -1,14 +1,15 @@
 #include <cstdio>
-#include <fstream>
-#include <sstream>
 #include <stdlib.h>
 #include <string.h>
-//#include "opencv2/opencv.hpp"
+#include <chrono>
+#include <string>
+#include "opencv2/opencv.hpp"
 
 #include "rice.h"
 #include "cfa_comp.h"
 //#include "bayer_comp_accel.hpp"
 
+#include "timeit.h"
 
 /**
  * @brief This is our friendly neighborhood main
@@ -34,27 +35,18 @@ int main(int argc, char ** argv)
     cv::Mat outimg;
     inimg = cv::imread(argv[1], -1);
     std::vector<uint8_t> comp_data;
-    cfaComp.compress(inimg, comp_data);
-    cfaComp.decompress(comp_data, outimg);
+    {
+        Timeit comptime("Compression time");
+        cfaComp.compress(inimg, comp_data);
+    }
+    {
+        Timeit comptime("Decompression time");
+        cfaComp.decompress(comp_data, outimg);
+    }
 
     cv::imwrite("ref.png", outimg);
     cfaComp.compare_images(inimg, outimg);
     cfaComp.save_vector<uint8_t>("comp.cfa", comp_data);
-
-    // int size;
-    // cv::Mat img = cv::imread(argv[1], -1);
-
-    // if (!img.empty())
-    // {
-    //     auto comp_data = compress_ref(img);
-    //     auto ref = decompress_ref(comp_data, "ref.png");
-    //     result = compare_images(img, ref);
-    // }
-    // else
-    // {
-    //     printf("ERROR: Can't open file\n");
-    //     result = -1;
-    // }
 
     return result;
 }

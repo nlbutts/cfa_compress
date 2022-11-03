@@ -24,6 +24,12 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     int total_pixels = img.rows * img.cols;
     std::vector<int16_t> channels[4];
     std::vector<uint8_t> comp_data[4];
+    int channel_index[4] = {0};
+
+    for (int i = 0; i < 4; i++)
+    {
+        channels[i].resize(total_pixels / 4);
+    }
 
     // Split the bayer image into RGGB planes
     uint16_t prev_pixel[4];
@@ -35,13 +41,15 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
             uint16_t pixel = img.at<uint16_t>(y, x);
             if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
             {
-                channels[index].push_back(pixel);
+                channels[index][channel_index[index]] = pixel;
                 prev_pixel[index] = pixel;
+                channel_index[index]++;
             }
             else
             {
-                channels[index].push_back(pixel - prev_pixel[index]);
+                channels[index][channel_index[index]] = pixel - prev_pixel[index];
                 prev_pixel[index] = pixel;
+                channel_index[index]++;
             }
         }
     }

@@ -247,10 +247,10 @@ HLS ?= vitis_hls
 runhls: data setup | check_vivado check_vpp
 	$(HLS) -f run_hls.tcl;
 
-CPPSRC = main_tb.cpp rice.cpp cfa_comp.cpp
+CPPSRC = main_tb.cpp rice.cpp cfa_comp.cpp timeit.cpp
 OBJDIR = obj
 OBJS := $(CPPSRC:%.cpp=$(OBJDIR)/%.o)
-CFLAGS = -std=c++14 -O0 -I/usr/local/include/opencv4 -g
+CFLAGS = -std=c++14 -O3 -I/usr/local/include/opencv4 -g
 
 
 clean:
