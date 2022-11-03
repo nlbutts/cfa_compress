@@ -24,15 +24,11 @@ typedef struct {
 
 static int _Rice_NumBits( uint16_t x )
 {
-    //int n = 0;
     uint8_t n = 0;
     if (x)
     {
         n = 32 - __builtin_clz(x);
     }
-    //for( n = 32; !(x & 0x80000000) && (n > 0); -- n ) x <<= 1;
-    //return n;
-    //printf("_Rice_NumBits: %d %d\n", n, temp);
     return n;
 }
 
@@ -56,22 +52,6 @@ static void _Rice_InitBitstream( rice_bitstream_t *stream,
 
 static void _Rice_WriteBit( rice_bitstream_t *stream, bool x )
 {
-    // if( stream->index < stream->NumBytes )
-    // {
-    //     stream->tempbits |= x;
-    //     stream->tempcount++;
-    //     if (stream->tempcount >= 8)
-    //     {
-    //         stream->BytePtr[stream->index] = stream->tempbits & 0xFF;
-    //         stream->tempbits = 0;
-    //         stream->tempcount = 0;
-    //         stream->index++;
-    //     }
-    //     else
-    //     {
-    //         stream->tempbits <<= 1;
-    //     }
-    // }
     stream->tempbits <<= 1;
     stream->tempbits[0] = x;
     if (stream->tempbits & 0x100)
@@ -91,8 +71,10 @@ static void _Rice_EncodeWord( uint16_t x,
                               uint16_t k,
                               rice_bitstream_t *stream )
 {
-    unsigned int q, i;
-    int          j, o;
+    ap_uint<4>  i;
+    ap_uint<10> q;
+    ap_uint<6>  o;
+    ap_int<9>   j;
 
     /* Determine overflow */
     q = x >> k;
@@ -141,7 +123,6 @@ static void _Rice_EncodeWord( uint16_t x,
 }
 
 
-//int Rice_Compress( int16_t *in, uint8_t *out, unsigned int insize, int k )
 int Rice_Compress(hls::stream<int16_t> &indata,
                   hls::stream<uint8_t> &outdata,
                   unsigned int insize,
@@ -149,22 +130,18 @@ int Rice_Compress(hls::stream<int16_t> &indata,
 {
     rice_bitstream_t    stream;
     unsigned int        i, incount;
-    int16_t             hist[ RICE_HISTORY ];
-    int16_t             j;
-    //ap_uint<5>          hist[ RICE_HISTORY ];
-    //ap_uint<5>          j;
+    ap_uint<4>          hist[ RICE_HISTORY ];
+    ap_uint<5>          j;
     int16_t             sx;
     uint16_t            x;
 
     _Rice_InitBitstream(&stream, outdata);
     outdata.write(k);
 
-    //incount = insize / (RICE_WORD>>3);
     // how many 8-bit values from 16-bit inputs
     incount = insize >> 1;
 
     /* Encode input stream */
-    //for( i = 0; (i < incount) && (stream.index <= insize); ++ i )
     for( i = 0; i < incount; ++ i )
     {
         /* Revise optimum k? */
@@ -175,7 +152,6 @@ int Rice_Compress(hls::stream<int16_t> &indata,
             {
                 k += hist[ j ];
             }
-            //k = (k + (RICE_HISTORY>>1)) / RICE_HISTORY;
             // RICE_HISTORY is 16 which is a shift by 4
             k = (k + (RICE_HISTORY>>1)) >> 4;
         }
@@ -205,9 +181,7 @@ int Rice_Compress(hls::stream<int16_t> &indata,
     {
         stream.tempbits <<= 1;
     }
-    //uint8_t finalbyte = (stream.tempbits << (7 - stream.tempcount)) & 0xFF;
     outdata.write(stream.tempbits & 0xFF);
-    //stream.BytePtr[stream.index] = (stream.tempbits << (7 - stream.tempcount)) & 0xFF;
 
     return stream.index + 1;
 }
