@@ -7,9 +7,11 @@
 
 #include "rice.h"
 #include "cfa_comp.h"
-//#include "bayer_comp_accel.hpp"
-
 #include "timeit.h"
+
+#ifdef __SDSVHLS__
+#include "AccelRice.h"
+#endif
 
 /**
  * @brief This is our friendly neighborhood main
@@ -47,6 +49,26 @@ int main(int argc, char ** argv)
     cv::imwrite("ref.png", outimg);
     cfaComp.compare_images(inimg, outimg);
     cfaComp.save_vector<uint8_t>("comp.cfa", comp_data);
+
+#ifdef __SDSVHLS__
+    AccelRice accelrice;
+    CfaComp cfaComp2(accelrice);
+
+    comp_data.clear();
+    {
+        Timeit comptime("Accel Compression time");
+        cfaComp2.compress(inimg, comp_data);
+    }
+    {
+        Timeit comptime("Decompression time");
+        cfaComp.decompress(comp_data, outimg);
+    }
+
+    cv::imwrite("ref2.png", outimg);
+    cfaComp2.compare_images(inimg, outimg);
+    cfaComp2.save_vector<uint8_t>("comp2.cfa", comp_data);
+
+#endif
 
     return result;
 }

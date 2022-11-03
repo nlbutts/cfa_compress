@@ -1,7 +1,7 @@
 #ifndef _CFA_COMP_H_
 #define _CFA_COMP_H_
 
-#include <opencv2/opencv.hpp>
+#include "opencv2/opencv.hpp"
 #include "IRice.h"
 #include "cfa_comp_struct.h"
 

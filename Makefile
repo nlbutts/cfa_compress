@@ -254,7 +254,7 @@ CFLAGS = -std=c++14 -O3 -I/usr/local/include/opencv4 -g
 
 
 clean:
-	rm -rf settings.tcl *_hls.log simple_hdr.prj
+	rm -rf settings.tcl *_hls.log cfa_comp.prj
 	rm -rf $(OBJDIR)
 	rm -f ref*
 	rm -f comp.cfa

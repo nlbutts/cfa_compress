@@ -1,6 +1,8 @@
 #include <stdlib.h>
+#include "AccelRice.h"
 #include "ap_axi_sdata.h"
-#include "bayer_comp_accel.hpp"
+#include "hls_stream.h"
+
 
 #define RICE_HISTORY    16
 #define RICE_WORD       16
@@ -157,6 +159,7 @@ int Rice_Compress(hls::stream<int16_t> &indata,
     uint16_t            x;
 
     _Rice_InitBitstream(&stream, outdata);
+    outdata.write(k);
 
     //incount = insize / (RICE_WORD>>3);
     // how many 8-bit values from 16-bit inputs
@@ -234,6 +237,8 @@ int AccelRice::compress( std::vector<int16_t> &in,
     {
         instream.write(*it);
     }
+
+    Rice_Compress_accel(instream, outstream, in.size() * 2, 7);
 
     while (!outstream.empty())
     {

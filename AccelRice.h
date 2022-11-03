@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <stdint.h>
+#include "IRice.h"
 
 /**
  * @brief This is the abstract base class for the Rice implementation.
@@ -10,7 +11,7 @@
  * FPGA accelerated implementation.
  *
  */
-class AccelRice
+class AccelRice : public IRice
 {
 public:
     AccelRice() {};
