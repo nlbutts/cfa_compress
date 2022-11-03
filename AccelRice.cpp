@@ -88,15 +88,11 @@ static void _Rice_WriteBit( rice_bitstream_t *stream, bool x )
 *************************************************************************/
 
 static void _Rice_EncodeWord( uint16_t x,
-                              ap_uint<5> k,
+                              uint16_t k,
                               rice_bitstream_t *stream )
 {
-    //unsigned int q, i;
-    uint8_t q, i;
-    //int8_t          j, o;
-    int8_t          j;
-    ap_uint<5>      o;
-    //int          j, o;
+    unsigned int q, i;
+    int          j, o;
 
     /* Determine overflow */
     q = x >> k;
@@ -153,8 +149,10 @@ int Rice_Compress(hls::stream<int16_t> &indata,
 {
     rice_bitstream_t    stream;
     unsigned int        i, incount;
-    ap_uint<5>          hist[ RICE_HISTORY ];
-    ap_uint<5>          j;
+    int16_t             hist[ RICE_HISTORY ];
+    int16_t             j;
+    //ap_uint<5>          hist[ RICE_HISTORY ];
+    //ap_uint<5>          j;
     int16_t             sx;
     uint16_t            x;
 
