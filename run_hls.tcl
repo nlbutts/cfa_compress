@@ -21,6 +21,7 @@ set SOLN "sol1"
 set PRJROOT $env(PRJROOT)
 #set VITIS_LIB /home/nlbutts/projects/vitis_isp/Vitis_Libraries/vision
 set CFLAGS " -I ${OPENCV_INCLUDE} -I ./ -D__SDSVHLS__ -std=c++14"
+set INFILE "${PRJROOT}/data/small.png"
 
 if {![info exists CLKP]} {
   set CLKP 5
@@ -43,7 +44,7 @@ set_part $XPART
 create_clock -period $CLKP
 
 if {$CSIM == 1} {
-  csim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv " ${PRJROOT}/data/test.png"
+  csim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv " ${INFILE}"
 }
 
 if {$CSYNTH == 1} {
@@ -51,8 +52,8 @@ if {$CSYNTH == 1} {
 }
 
 if {$COSIM == 1} {
-  #cosim_design -disable_dependency_check -argv " ${PRJROOT}/g1d.bin ${PRJROOT}/g1d.bin.rice" -trace_level port -wave_debug
-  cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv " ${PRJROOT}/data/test.png" -trace_level port -wave_debug
+  #cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE} -trace_level port -wave_debug
+  cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE}
 }
 
 if {$VIVADO_SYN == 1} {

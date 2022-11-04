@@ -130,13 +130,19 @@ int Rice_Compress(hls::stream<int16_t> &indata,
 {
     rice_bitstream_t    stream;
     unsigned int        i, incount;
-    ap_uint<4>          hist[ RICE_HISTORY ];
+    ap_uint<4>          hist[ RICE_HISTORY ] = {0};
     ap_uint<5>          j;
     int16_t             sx;
     uint16_t            x;
+    uint16_t            sumk = 0;
 
     _Rice_InitBitstream(&stream, outdata);
     outdata.write(k);
+
+    for (i = 0; i < RICE_HISTORY; i++)
+    {
+        hist[i] = 0;
+    }
 
     // how many 8-bit values from 16-bit inputs
     incount = insize >> 1;
@@ -147,13 +153,14 @@ int Rice_Compress(hls::stream<int16_t> &indata,
         /* Revise optimum k? */
         if( i >= RICE_HISTORY )
         {
-            k = 0;
-            for( j = 0; j < RICE_HISTORY; ++ j )
-            {
-                k += hist[ j ];
-            }
+            // k = 0;
+            // for( j = 0; j < RICE_HISTORY; ++ j )
+            // {
+            //     k += hist[ j ];
+            // }
             // RICE_HISTORY is 16 which is a shift by 4
-            k = (k + (RICE_HISTORY>>1)) >> 4;
+            //k = (k + (RICE_HISTORY>>1)) >> 4;
+            k = (sumk + (RICE_HISTORY >> 1)) >> 4;
         }
 
         /* Read word from input buffer */
@@ -164,7 +171,9 @@ int Rice_Compress(hls::stream<int16_t> &indata,
         _Rice_EncodeWord( x, k, &stream );
 
         /* Update history */
+        sumk -= hist[i % RICE_HISTORY];
         hist[ i % RICE_HISTORY ] = _Rice_NumBits( x );
+        sumk += hist[ i % RICE_HISTORY ];
     }
 
     // /* Was there a buffer overflow? */
