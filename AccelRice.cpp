@@ -15,7 +15,8 @@ typedef ap_axiu<8, 1, 1, 1> compdata;
 typedef struct {
     hls::stream<uint8_t>*   outdata;
     unsigned int            index;
-    ap_uint<9>              tempbits;
+    ap_uint<64>             tempbits;
+    ap_uint<6> 				bitcount;
 } rice_bitstream_t;
 
 /*************************************************************************
@@ -43,6 +44,7 @@ static void _Rice_InitBitstream( rice_bitstream_t *stream,
     stream->outdata     = &outdata;
     stream->tempbits    = 1;
     stream->index       = 0;
+    stream->bitcount    = 0;
 }
 
 
@@ -52,14 +54,9 @@ static void _Rice_InitBitstream( rice_bitstream_t *stream,
 
 static void _Rice_WriteBit( rice_bitstream_t *stream, bool x )
 {
-    stream->tempbits <<= 1;
+    stream->bitcount++;
     stream->tempbits[0] = x;
-    if (stream->tempbits & 0x100)
-    {
-        stream->outdata->write(stream->tempbits & 0xFF);
-        stream->tempbits = 1;
-        stream->index++;
-    }
+    stream->tempbits <<= 1;
 }
 
 
@@ -75,6 +72,7 @@ static void _Rice_EncodeWord( uint16_t x,
     ap_uint<10> q;
     ap_uint<6>  o;
     ap_int<9>   j;
+    static int maxbitcount = 0;
 
     /* Determine overflow */
     q = x >> k;
@@ -120,6 +118,13 @@ static void _Rice_EncodeWord( uint16_t x,
     {
         _Rice_WriteBit( stream, (x >> j) & 1 );
     }
+
+    while (stream->bitcount > 8)
+    {
+        stream->outdata->write(stream->tempbits.range(stream->bitcount, stream->bitcount - 7));
+        stream->bitcount -= 8;
+        stream->index++;
+    }
 }
 
 
@@ -153,13 +158,6 @@ int Rice_Compress(hls::stream<int16_t> &indata,
         /* Revise optimum k? */
         if( i >= RICE_HISTORY )
         {
-            // k = 0;
-            // for( j = 0; j < RICE_HISTORY; ++ j )
-            // {
-            //     k += hist[ j ];
-            // }
-            // RICE_HISTORY is 16 which is a shift by 4
-            //k = (k + (RICE_HISTORY>>1)) >> 4;
             k = (sumk + (RICE_HISTORY >> 1)) >> 4;
         }
 
@@ -174,6 +172,7 @@ int Rice_Compress(hls::stream<int16_t> &indata,
         sumk -= hist[i % RICE_HISTORY];
         hist[ i % RICE_HISTORY ] = _Rice_NumBits( x );
         sumk += hist[ i % RICE_HISTORY ];
+        //printf("k: %d sumk: %d\n", k, sumk);
     }
 
     // /* Was there a buffer overflow? */
@@ -186,11 +185,12 @@ int Rice_Compress(hls::stream<int16_t> &indata,
     // }
 
     // Flush the last few bits
-    while (!(stream.tempbits & 0x100))
+    while (stream.bitcount < 7)
     {
         stream.tempbits <<= 1;
+        stream.bitcount++;
     }
-    outdata.write(stream.tempbits & 0xFF);
+    outdata.write(stream.tempbits.range(7, 0));
 
     return stream.index + 1;
 }

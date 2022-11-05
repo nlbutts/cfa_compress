@@ -436,14 +436,14 @@ int Rice_Compress( void *in, void *out, unsigned int insize, int format )
     _Rice_InitBitstream( &stream, out, insize+1 );
 
     /* Determine a good initial k */
-    k = 0;
-    for( i = 0; (i < RICE_HISTORY) && (i < incount); ++ i )
-    {
-        n = _Rice_NumBits( _Rice_ReadWord( in, i, format ) );
-        k += n;
-    }
-    k = (k + (i>>1)) / i;
-    if( k == 0 ) k = 1;
+    k = 7;
+    // for( i = 0; (i < RICE_HISTORY) && (i < incount); ++ i )
+    // {
+    //     n = _Rice_NumBits( _Rice_ReadWord( in, i, format ) );
+    //     k += n;
+    // }
+    // k = (k + (i>>1)) / i;
+    // if( k == 0 ) k = 1;
 
     /* Write k to the output stream (the decoder needs it) */
     ((unsigned char *) out)[0] = k;

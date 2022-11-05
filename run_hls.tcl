@@ -22,6 +22,8 @@ set PRJROOT $env(PRJROOT)
 #set VITIS_LIB /home/nlbutts/projects/vitis_isp/Vitis_Libraries/vision
 set CFLAGS " -I ${OPENCV_INCLUDE} -I ./ -D__SDSVHLS__ -std=c++14"
 set INFILE "${PRJROOT}/data/small.png"
+set WAVE 0
+
 
 if {![info exists CLKP]} {
   set CLKP 5
@@ -52,8 +54,11 @@ if {$CSYNTH == 1} {
 }
 
 if {$COSIM == 1} {
-  #cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE} -trace_level port -wave_debug
-  cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE}
+  if {$WAVE} {
+    cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE} -trace_level port -wave_debug
+  } else {
+    cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE}
+  }
 }
 
 if {$VIVADO_SYN == 1} {

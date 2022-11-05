@@ -60,7 +60,7 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     {
         comp_size[ch] = _rice->compress(channels[ch], comp_data[ch]);
         printf("size: %d  comp_size: %d\n",
-                (int)channels[ch].size(),
+                (int)channels[ch].size() * 2,
                 comp_size[ch]);
     }
 
