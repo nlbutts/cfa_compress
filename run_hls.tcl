@@ -21,12 +21,12 @@ set SOLN "sol1"
 set PRJROOT $env(PRJROOT)
 #set VITIS_LIB /home/nlbutts/projects/vitis_isp/Vitis_Libraries/vision
 set CFLAGS " -I ${OPENCV_INCLUDE} -I ./ -D__SDSVHLS__ -std=c++14"
-set INFILE "${PRJROOT}/data/small.png"
+set INFILE "${PRJROOT}/data/test.png"
 set WAVE 0
 
 
 if {![info exists CLKP]} {
-  set CLKP 5
+  set CLKP 2.5
 }
 
 open_project -reset $PROJ

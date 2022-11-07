@@ -1,4 +1,4 @@
 break main
-break AccelRice.cpp:182
+break AccelRice.cpp:80
 run data/small.png
 
