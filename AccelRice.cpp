@@ -15,7 +15,7 @@ typedef ap_axiu<8, 1, 1, 1> compdata;
 typedef struct {
     hls::stream<uint8_t>*   outdata;
     unsigned int            index;
-    ap_uint<64>             bits;
+    ap_uint<40>             bits;
     ap_uint<6> 				bitcount;
 } rice_bitstream_t;
 
@@ -71,9 +71,6 @@ static void _Rice_EncodeWord( ap_uint<16> x,
     ap_uint<4>  i;
     ap_uint<10> q;
     ap_uint<6>  o;
-    ap_int<9>   j;
-    static int maxbitcount = 0;
-    int temp2;
     ap_uint<16> temp;
 
     /* Determine overflow */
@@ -84,11 +81,6 @@ static void _Rice_EncodeWord( ap_uint<16> x,
     /* Too large rice code? */
     if( q > RICE_THRESHOLD )
     {
-        /* Write Rice code (except for the final zero) */
-        // for( j = 0; j < RICE_THRESHOLD; ++ j )
-        // {
-        //     _Rice_WriteBit( stream, 1 );
-        // }
         stream->bits <<= RICE_THRESHOLD;
         stream->bits.range(RICE_THRESHOLD - 1, 0) = temp.range(RICE_THRESHOLD - 1, 0);
         stream->bitcount += RICE_THRESHOLD;
@@ -98,56 +90,34 @@ static void _Rice_EncodeWord( ap_uint<16> x,
 
         /* Write number of bits needed to represent the overflow */
         o = _Rice_NumBits( q );
-        // for( j = 0; j < o; ++ j )
-        // {
-        //     _Rice_WriteBit( stream, 1 );
-        // }
-        // _Rice_WriteBit( stream, 0 );
-        //temp.range(o, 1) = 1;
+
         temp[0] = 0;
         stream->bits <<= o + 1;
         stream->bits.range(o, 0) = temp.range(o, 0);
         stream->bitcount += o + 1;
 
-        /* Write the o-1 least significant bits of q "as is" */
-        // for( j = o-2; j >= 0; -- j )
-        // {
-        //     _Rice_WriteBit( stream, (q >> j) & 1 );
-        // }
         if (o >= 2)
         {
             stream->bits <<= (o - 2) + 1;
             stream->bits.range(o - 2, 0) = q.range(o - 2, 0);
             stream->bitcount += (o - 2) + 1;
         }
+
+        stream->bits <<= k;
+        stream->bits.range(k - 1, 0) = x.range(k - 1, 0);
+        stream->bitcount += k;
     }
     else
     {
-        /* Write Rice code */
-        // for( i = 0; i < q; ++ i )
-        // {
-        //     _Rice_WriteBit( stream, 1 );
-        // }
-        // _Rice_WriteBit( stream, 0 );
         temp[0] = 0;
-        stream->bits <<= q + 1;
-        stream->bits.range(q, 0) = temp.range(q, 0);
-        stream->bitcount += (q + 1);
+        stream->bits <<= q + 1 + k;
+        stream->bits.range(q + k, k) = temp.range(q, 0);
+        stream->bits.range(k - 1, 0) = x.range(k - 1, 0);
+        stream->bitcount += (q + 1 + k);
     }
-
-    /* Encode the rest of the k bits */
-    // for( j = k-1; j >= 0; -- j )
-    // {
-    //     _Rice_WriteBit( stream, (x >> j) & 1 );
-    // }
-    j = k - 1;
-    stream->bits <<= k;
-    stream->bits.range(k - 1, 0) = x.range(k - 1, 0);
-    stream->bitcount += k;
 
     while (stream->bitcount > 8)
     {
-        temp2 = stream->bits.range(stream->bitcount - 1, stream->bitcount - 8);
         stream->outdata->write(stream->bits.range(stream->bitcount - 1, stream->bitcount - 8));
         stream->bitcount -= 8;
         stream->index++;
