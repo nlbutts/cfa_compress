@@ -13,7 +13,7 @@ typedef ap_axiu<BITS, 1, 1, 1> pixel;
 typedef ap_axiu<8, 1, 1, 1> compdata;
 
 typedef struct {
-    hls::stream<uint8_t>*   outdata;
+    hls::stream<compdata>*  outdata;
     unsigned int            index;
     ap_uint<40>             bits;
     ap_uint<6> 				bitcount;
@@ -39,7 +39,7 @@ static int _Rice_NumBits( uint16_t x )
 *************************************************************************/
 
 static void _Rice_InitBitstream( rice_bitstream_t *stream,
-    hls::stream<uint8_t> &outdata )
+    hls::stream<compdata> &outdata )
 {
     stream->outdata     = &outdata;
     stream->bits        = 0;
@@ -68,7 +68,7 @@ static void _Rice_EncodeWord( ap_uint<16> x,
                               uint16_t k,
                               rice_bitstream_t *stream )
 {
-    ap_uint<4>  i;
+	ap_uint<4>  i;
     ap_uint<10> q;
     ap_uint<6>  o;
     ap_uint<16> temp;
@@ -118,15 +118,19 @@ static void _Rice_EncodeWord( ap_uint<16> x,
 
     while (stream->bitcount > 8)
     {
-        stream->outdata->write(stream->bits.range(stream->bitcount - 1, stream->bitcount - 8));
+        compdata d;
+        d.data = stream->bits.range(stream->bitcount - 1, stream->bitcount - 8);
+        d.user = 0;
+        d.last = 0;
+        stream->outdata->write(d);
         stream->bitcount -= 8;
         stream->index++;
     }
 }
 
 
-int Rice_Compress(hls::stream<int16_t> &indata,
-                  hls::stream<uint8_t> &outdata,
+int Rice_Compress(hls::stream<pixel> &indata,
+                  hls::stream<compdata> &outdata,
                   unsigned int insize,
                   uint16_t k )
 {
@@ -139,7 +143,11 @@ int Rice_Compress(hls::stream<int16_t> &indata,
     uint16_t            sumk = 0;
 
     _Rice_InitBitstream(&stream, outdata);
-    outdata.write(k);
+    compdata d;
+    d.data = k;
+    d.user = 1;
+    d.last = 0;
+    outdata.write(d);
 
     for (i = 0; i < RICE_HISTORY; i++)
     {
@@ -159,7 +167,7 @@ int Rice_Compress(hls::stream<int16_t> &indata,
         }
 
         /* Read word from input buffer */
-        sx = indata.read();
+        sx = indata.read().data;
         x = sx < 0 ? -1-(sx<<1) : sx<<1;
 
         /* Encode word to output buffer */
@@ -183,13 +191,16 @@ int Rice_Compress(hls::stream<int16_t> &indata,
 
     // Flush the last few bits
     stream.bits <<= (8 - stream.bitcount);
-    outdata.write(stream.bits.range(7, 0));
+    d.data = stream.bits.range(7, 0);
+    d.user = 0;
+    d.last = 1;
+    outdata.write(d);
 
     return stream.index + 1;
 }
 
-int Rice_Compress_accel( hls::stream<int16_t> &indata,
-                         hls::stream<uint8_t> &outdata,
+int Rice_Compress_accel( hls::stream<pixel> &indata,
+                         hls::stream<compdata> &outdata,
                          unsigned int insize,
                          int k )
 {
@@ -205,18 +216,28 @@ int Rice_Compress_accel( hls::stream<int16_t> &indata,
 int AccelRice::compress( std::vector<int16_t> &in,
                          std::vector<uint8_t> &out)
 {
-    hls::stream<int16_t> instream;
-    hls::stream<uint8_t> outstream;
+    hls::stream<pixel> instream;
+    hls::stream<compdata> outstream;
+    pixel p;
+    p.user = 1;
+    p.last = 0;
     for (auto it = in.begin(); it != in.end(); ++it)
     {
-        instream.write(*it);
+        p.data = *it;
+        p.user = 0;
+        if ((it + 1) == in.end())
+        {
+            p.last = 1;
+        }
+        instream.write(p);
     }
 
     Rice_Compress_accel(instream, outstream, in.size() * 2, 7);
 
     while (!outstream.empty())
     {
-        out.push_back(outstream.read());
+        compdata d = outstream.read();
+        out.push_back(d.data);
     }
     return out.size();
 }

@@ -22,7 +22,7 @@ set PRJROOT $env(PRJROOT)
 #set VITIS_LIB /home/nlbutts/projects/vitis_isp/Vitis_Libraries/vision
 set CFLAGS " -I ${OPENCV_INCLUDE} -I ./ -D__SDSVHLS__ -std=c++14"
 set INFILE "${PRJROOT}/data/small.png"
-set WAVE 0
+set WAVE 1
 
 
 if {![info exists CLKP]} {
@@ -44,6 +44,7 @@ open_solution -reset $SOLN
 
 set_part $XPART
 create_clock -period $CLKP
+config_export -description riceaccel -format ip_catalog -library riceaccel -output ip -rtl verilog -vendor NLB -version 1.1
 
 if {$CSIM == 1} {
   csim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv " ${INFILE}"
@@ -55,7 +56,7 @@ if {$CSYNTH == 1} {
 
 if {$COSIM == 1} {
   if {$WAVE} {
-    cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE} -trace_level port -wave_debug
+    cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE} -trace_level all -wave_debug
   } else {
     cosim_design -ldflags "-L ${OPENCV_LIB} -lopencv_imgcodecs -lopencv_imgproc -lopencv_core " -argv ${INFILE}
   }
