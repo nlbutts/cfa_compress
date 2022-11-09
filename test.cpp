@@ -11,6 +11,15 @@
 
 using namespace std::chrono_literals;
 
+void dump_stats(volatile uint32_t * addr)
+{
+    int cr = *addr;
+    int k = *(addr + 8);
+    int insize = *(addr + 6);
+    int outsize = *(addr + 4);
+    printf("Rice CR: %02X  k: %d  insize: %d  outsize: %d\n", cr, k, insize, outsize);
+}
+
 /**
  * @brief This is our friendly neighborhood main
  *
@@ -62,10 +71,10 @@ int main(int argc, char ** argv)
     if (accel > 0)
     {
         printf("Attempt to mmap accelerator\n");
-        uint8_t * accelva = (uint8_t*)mmap(NULL,
-                                           4096,
-                                           PROT_READ | PROT_WRITE,
-                                           MAP_SHARED, accel, 0xA0040000);
+        volatile uint32_t * accelva = (uint32_t*)mmap(NULL,
+                                             4096,
+                                             PROT_READ | PROT_WRITE,
+                                             MAP_SHARED, accel, 0xA0040000);
         printf("Mapped address of %p\n", accelva);
 
         // std::vector<uint8_t> dst;
@@ -73,25 +82,46 @@ int main(int argc, char ** argv)
         uint8_t * dst = new uint8_t[4096];
 
         int fifo = open("/dev/axis_fifo_0x00000000a0010000", O_RDWR);
+        *accelva = 0;
+        dump_stats(accelva);
+        *accelva = 0;
+        dump_stats(accelva);
+        ssize_t size = read(fifo, dst, 4096);
+        printf("Flushed FIFO with %d bytes\n", (int)size);
         if (fifo > 0)
         {
-            ssize_t size;
             //size = read(fifo, dst, 4096);
             // printf("Clearing FIFO with a read, returned :%d\n", (int)size);
             int len = (diff.size() * 2 / 4) * 4;
             printf("dev node opened successfully, writing %d bytes\n", len);
 
-            uint8_t cr = *accelva;
-            printf("Rice accelerator CR: %02X\n", cr);
             // Set k
-            *(accelva + 0x20) = 7;
-            *(accelva + 0x18) = len;
+            *(accelva + 8) = 7;
+            *(accelva + 6) = len;
             *accelva = 0x1;
-            cr = *accelva;
-            printf("Rice accelerator CR: %02X\n", cr);
+            dump_stats(accelva);
+
+            int block_len = 16 * 4;
+            int words_len = (diff.size() * 2) / 4;
+            int tx_blocks = words_len / block_len;
+            int remaining_words = words_len - (tx_blocks * block_len);
+
+            printf("Sending %d bytes %d words\n", (int)diff.size() * 2, words_len);
+            printf("Tx blocks %d remaining words %d\n", tx_blocks, remaining_words);
 
             Timeit t("Rice encoding");
-            write(fifo, diff.data(), len);
+
+            int32_t * src = (int32_t*)diff.data();
+            for (int i = 0; i < tx_blocks; i++, src += block_len)
+            {
+                printf("Txing block %d of size %d blocks\n", i, block_len);
+                write(fifo, src, block_len);
+                size = read(fifo, dst, 4096);
+                printf("Received %d bytes\n", (int)size);
+                dump_stats(accelva);
+            }
+            src += block_len;
+            write(fifo, src, remaining_words);
             while (1)
             {
                 size = read(fifo, dst, 4096);
@@ -112,8 +142,6 @@ int main(int argc, char ** argv)
 
             int bytes_proc = *(accelva + 10);
             printf("Bytes processed: %d\n", bytes_proc);
-            cr = *accelva;
-            printf("Rice accelerator CR: %02X\n", cr);
         }
         else
         {
