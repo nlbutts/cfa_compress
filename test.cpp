@@ -8,6 +8,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "timeit.h"
+#include "xrice_compress_accel.h"
+
+#define PAGE_ALIGN(addr) (((addr / 4096) + 1) * 4096)
 
 using namespace std::chrono_literals;
 
@@ -45,7 +48,6 @@ int main(int argc, char ** argv)
     int cols = inimg.cols;
 
     std::vector<uint16_t> buf;
-    std::vector<int16_t> diff;
     printf("Data: ");
     for (int y = 0; y < rows; y += 2)
     {
@@ -56,99 +58,61 @@ int main(int argc, char ** argv)
     }
 
     printf("Data size: %d words\n", (int)buf.size());
-    //printf("%d ", buf[0]);
-    diff.push_back(buf[0]);
+
+    XRice_compress_accel inst;
+    XRice_compress_accel_Initialize(&inst, "rice-accel");
+
+    printf("IsDone: %d isIdle: %d isReady: %d\n",
+            XRice_compress_accel_IsDone(&inst),
+            XRice_compress_accel_IsIdle(&inst),
+            XRice_compress_accel_IsReady(&inst));
+
+    printf("K: %d\n", XRice_compress_accel_Get_k(&inst));
+
+    printf("Control Addr: %016lX  dma virt addr: %016lX  dma phy addr: %16lX\n", inst.Control_BaseAddress, inst.dmabuf_virt_addr, inst.dmabuf_phy_addr);
+
+    // Put the data into the DMA buffer
+    printf("Pushing data into DMA buffer\n");
+    int16_t * src = (int16_t*)(inst.dmabuf_virt_addr);
+    src[0] = buf[0];
+    printf("%04X ", src[0]);
     for (int i = 1; i < buf.size(); i++)
     {
         int16_t temp = buf[i] - buf[i-1];
-        diff.push_back(temp);
-        //printf("%04X ", temp);
+        src[i] = temp;
+        if (buf.size() < 200)
+            printf("%04X ", (int)temp);
     }
     printf("\n");
 
-    int accel = open("/dev/mem", O_RDWR);
-    printf("Open /dev/mem: %d\n", accel);
-    if (accel > 0)
+    printf("Setting pointers in module\n");
+    int offset = PAGE_ALIGN(buf.size());
+    printf("Offset for out data: %08X\n", offset);
+    XRice_compress_accel_Set_indata(&inst, inst.dmabuf_phy_addr);
+    XRice_compress_accel_Set_outdata(&inst, inst.dmabuf_phy_addr + offset);
+    XRice_compress_accel_Set_k(&inst, 7);
+    XRice_compress_accel_Set_insize(&inst, buf.size() * 2);
+
+    XRice_compress_accel_Start(&inst);
+
+    u32 done;
+    Timeit t("Rice accel time");
+    while (!XRice_compress_accel_IsIdle(&inst)) {};
+    t.print();
+
+    u32 compsize = XRice_compress_accel_Get_return(&inst);
+    printf("Compressed size: %d\n", compsize);
+
+    uint8_t * dst = (uint8_t*)(inst.dmabuf_virt_addr + offset);
+    if (compsize < 200)
     {
-        printf("Attempt to mmap accelerator\n");
-        volatile uint32_t * accelva = (uint32_t*)mmap(NULL,
-                                             4096,
-                                             PROT_READ | PROT_WRITE,
-                                             MAP_SHARED, accel, 0xA0040000);
-        printf("Mapped address of %p\n", accelva);
-
-        // std::vector<uint8_t> dst;
-        // dst.reserve(4096);
-        uint8_t * dst = new uint8_t[4096];
-
-        int fifo = open("/dev/axis_fifo_0x00000000a0010000", O_RDWR);
-        *accelva = 0;
-        dump_stats(accelva);
-        *accelva = 0;
-        dump_stats(accelva);
-        ssize_t size = read(fifo, dst, 4096);
-        printf("Flushed FIFO with %d bytes\n", (int)size);
-        if (fifo > 0)
+        for (int i = 0; i < compsize; i++)
         {
-            //size = read(fifo, dst, 4096);
-            // printf("Clearing FIFO with a read, returned :%d\n", (int)size);
-            int len = (diff.size() * 2 / 4) * 4;
-            printf("dev node opened successfully, writing %d bytes\n", len);
-
-            // Set k
-            *(accelva + 8) = 7;
-            *(accelva + 6) = len;
-            *accelva = 0x1;
-            dump_stats(accelva);
-
-            int block_len = 16 * 4;
-            int words_len = (diff.size() * 2) / 4;
-            int tx_blocks = words_len / block_len;
-            int remaining_words = words_len - (tx_blocks * block_len);
-
-            printf("Sending %d bytes %d words\n", (int)diff.size() * 2, words_len);
-            printf("Tx blocks %d remaining words %d\n", tx_blocks, remaining_words);
-
-            Timeit t("Rice encoding");
-
-            int32_t * src = (int32_t*)diff.data();
-            for (int i = 0; i < tx_blocks; i++, src += block_len)
-            {
-                printf("Txing block %d of size %d blocks\n", i, block_len);
-                write(fifo, src, block_len);
-                size = read(fifo, dst, 4096);
-                printf("Received %d bytes\n", (int)size);
-                dump_stats(accelva);
-            }
-            src += block_len;
-            write(fifo, src, remaining_words);
-            while (1)
-            {
-                size = read(fifo, dst, 4096);
-                t.print();
-                printf("Received %d bytes\n", (int)size);
-                if (size > 0)
-                {
-                    // for (int i = 0; i < size; i++)
-                    // {
-                    //     printf("%02x ", (int)dst[i]);
-                    // }
-                    break;
-                }
-            }
-
-            close(fifo);
-            printf("Wrote data in chunks of 32-bits\n");
-
-            int bytes_proc = *(accelva + 10);
-            printf("Bytes processed: %d\n", bytes_proc);
-        }
-        else
-        {
-            printf("Can't open handle to axis fifo\n");
+            printf("%02X ", dst[i]);
         }
     }
 
+    XRice_compress_accel_Release(&inst);
 
     return 0;
 }

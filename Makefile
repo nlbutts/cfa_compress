@@ -271,9 +271,10 @@ ref: $(OBJS)
 	@echo $(OBJS)
 	$(CXX) $(CFLAGS) -o $@ $(OBJS)  -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
 
+DRIVER=drivers/
 .PHONY: test
-test: test.cpp timeit.cpp
-	$(CXX) $(CFLAGS) -o $@ test.cpp timeit.cpp  -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
+test: test.cpp timeit.cpp $(DRIVER)/xrice_compress_accel_linux.c $(DRIVER)/xrice_compress_accel.c
+	$(CXX) $(CFLAGS) -I$(DRIVER) -o $@ $? -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
 	scp test root@zynq:
 
 .PHONY: opencv
