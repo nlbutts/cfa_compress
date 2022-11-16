@@ -129,13 +129,14 @@ int XRice_compress_accel_Initialize(XRice_compress_accel *InstancePtr, const cha
     InstancePtr->Control_BaseAddress = (u64)mmap(NULL, InfoPtr->maps[0].size, PROT_READ|PROT_WRITE, MAP_SHARED, InfoPtr->uio_fd, 0 * getpagesize());
     assert(InstancePtr->Control_BaseAddress);
 
-    int mem = open("/dev/mem", O_RDWR);
+    int mem = open("/dev/mem", O_RDWR );
     assert(mem > 0);
     InstancePtr->dmabuf_phy_addr = InfoPtr->maps[1].addr;
     InstancePtr->dmabuf_virt_addr = (u64)mmap(NULL, InfoPtr->maps[1].size, PROT_READ|PROT_WRITE, MAP_SHARED, mem, InstancePtr->dmabuf_phy_addr);
     close(mem);
     printf("mmap memory: %08lX\n", InstancePtr->dmabuf_virt_addr);
-    printf("%s\n", strerror(errno));
+    if (InstancePtr->dmabuf_virt_addr == 0xFFFFFFFF)
+        printf("%s\n", strerror(errno));
     assert(InstancePtr->dmabuf_virt_addr < ULONG_MAX);
 
     InstancePtr->buf_size = InfoPtr->maps[1].size;

@@ -14,9 +14,10 @@ public:
     void print();
 
 private:
+    std::string _description;
+    bool _running;
     std::chrono::time_point<std::chrono::high_resolution_clock> _start;
     std::chrono::time_point<std::chrono::high_resolution_clock> _stop;
-    std::string _description;
 };
 
 #endif // _TIMEIT_H_
