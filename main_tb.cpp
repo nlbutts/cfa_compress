@@ -13,6 +13,10 @@
 #include "AccelRice.h"
 #endif
 
+#ifdef HW_IMPLEMENTATION
+#include "HWAccelRice.h"
+#endif
+
 /**
  * @brief This is our friendly neighborhood main
  *
@@ -67,6 +71,26 @@ int main(int argc, char ** argv)
     cv::imwrite("ref2.png", outimg);
     cfaComp2.compare_images(inimg, outimg);
     cfaComp2.save_vector<uint8_t>("comp2.cfa", comp_data);
+
+#endif
+
+#ifdef HW_IMPLEMENTATION
+    HWAccelRice accelrice;
+    CfaComp cfaComp3(accelrice);
+
+    comp_data.clear();
+    {
+        Timeit comptime("Accel Compression time");
+        cfaComp3.compress(inimg, comp_data);
+    }
+    {
+        Timeit comptime("Decompression time");
+        cfaComp.decompress(comp_data, outimg);
+    }
+
+    cv::imwrite("ref2.png", outimg);
+    cfaComp3.compare_images(inimg, outimg);
+    cfaComp3.save_vector<uint8_t>("comp3.cfa", comp_data);
 
 #endif
 

@@ -94,7 +94,7 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     float cr = (float)compimg.size() / (total_pixels * 2);
     cr *= 100;
 
-    printf("Compressed size: %d  Uncompressed size: %d  Red: %0.1f%%\n",
+    printf("Compressed size: %d  Uncompressed size: %d  Ratio: %0.1f%%\n",
            (int)compimg.size(), total_pixels * 2, cr);
 
     return compimg.size();

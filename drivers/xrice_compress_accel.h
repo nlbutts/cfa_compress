@@ -49,6 +49,7 @@ typedef struct {
     u64 dmabuf_phy_addr;
     u64 dmabuf_virt_addr;
     u32 buf_size;
+    char devnode[100];
 } XRice_compress_accel;
 
 typedef u32 word_type;
