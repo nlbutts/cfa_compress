@@ -252,11 +252,13 @@ CPPSRC = main_tb.cpp \
 		 cfa_comp.cpp \
 		 timeit.cpp \
 		 HWAccelRice.cpp \
-		 drivers/xrice_compress_accel.c \
-		 drivers/xrice_compress_accel_linux.c \
+
+CSRC = drivers/xrice_compress_accel.c \
+	   drivers/xrice_compress_accel_linux.c \
 
 OBJDIR = obj
-OBJS := $(CPPSRC:%.cpp=$(OBJDIR)/%.o)
+CPPOBJS := $(CPPSRC:%.cpp=$(OBJDIR)/%.o)
+COBJS += $(CSRC:%.c=$(OBJDIR)/%.o)
 CFLAGS = -std=c++14 -O0 -I/usr/local/include/opencv4 -g -DHW_IMPLEMENTATION
 
 
@@ -269,14 +271,19 @@ clean:
 # Used by Jenkins test
 cleanall: clean
 
-$(OBJS): $(OBJDIR)/%.o: %.cpp
+$(CPPOBJS): $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(OBJDIR)
 	$(CXX) -c $(CFLAGS) $< -o $@
 
+$(COBJS): $(OBJDIR)/drivers/%.o: drivers/%.c
+	@mkdir -p $(OBJDIR)/drivers
+	$(CXX) -c $(CFLAGS) $< -o $@
+
 .PHONY: ref
-ref: $(OBJS)
-	@echo $(OBJS)
-	$(CXX) $(CFLAGS) -o $@ $(OBJS)  -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
+ref: $(COBJS) $(CPPOBJS)
+	@echo $(COBJS)
+	@echo $(CPPOBJS)
+	$(CXX) $(CFLAGS) -o $@ $(COBJS) $(CPPOBJS)  -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
 
 .PHONY: opencv
 opencv:

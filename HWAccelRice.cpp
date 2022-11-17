@@ -28,8 +28,14 @@ HWAccelRice::~HWAccelRice()
 }
 
 int HWAccelRice::compress( std::vector<int16_t> &in,
-                         std::vector<uint8_t> &out)
+                           std::vector<uint8_t> &out)
 {
+    volatile int16_t * src = (volatile int16_t *)_inst.dmabuf_virt_addr;
+    for (int i = 0; i < in.size(); i++)
+    {
+        src[i] = in[i];
+    }
+
     int offset = PAGE_ALIGN(in.size() * 2);
     XRice_compress_accel_Set_indata(&_inst, _inst.dmabuf_phy_addr);
     XRice_compress_accel_Set_outdata(&_inst, _inst.dmabuf_phy_addr + offset);
