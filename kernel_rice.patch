@@ -1,0 +1,208 @@
+diff -urpN kernel_old/drivers/uio/Kconfig kernel_new/drivers/uio/Kconfig
+--- kernel_old/drivers/uio/Kconfig	2022-11-17 07:01:01.534253520 -0600
++++ kernel_new/drivers/uio/Kconfig	2022-11-17 07:00:07.725858033 -0600
+@@ -205,4 +205,9 @@ config UIO_DFL
+ 	    opae-sdk/tools/libopaeuio/
+
+ 	  If you compile this as a module, it will be called uio_dfl.
++
++config RICE_ACCEL
++	tristate "Generic driver for DFL (Device Feature List) bus"
++	help
++		UIO driver for the Rice Accelerator
+ endif
+diff -urpN kernel_old/drivers/uio/Makefile kernel_new/drivers/uio/Makefile
+--- kernel_old/drivers/uio/Makefile	2022-11-17 07:01:01.534253520 -0600
++++ kernel_new/drivers/uio/Makefile	2022-11-17 07:00:07.725858033 -0600
+@@ -16,3 +16,4 @@ obj-$(CONFIG_UIO_FSL_ELBC_GPCM)	+= uio_f
+ obj-$(CONFIG_UIO_HV_GENERIC)	+= uio_hv_generic.o
+ obj-$(CONFIG_UIO_XILINX_AI_ENGINE) += uio_xilinx_ai_engine.o
+ obj-$(CONFIG_UIO_DFL)	+= uio_dfl.o
++obj-$(CONFIG_RICE_ACCEL)	+= rice_accel.o
+diff -urpN kernel_old/drivers/uio/rice_accel.c kernel_new/drivers/uio/rice_accel.c
+--- kernel_old/drivers/uio/rice_accel.c	1969-12-31 18:00:00.000000000 -0600
++++ kernel_new/drivers/uio/rice_accel.c	2022-11-17 07:00:07.725858033 -0600
+@@ -0,0 +1,183 @@
++#define DEBUG
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Xilinx AXI Performance Monitor
++ *
++ * Copyright (C) 2013 - 2019 Xilinx, Inc. All rights reserved.
++ *
++ * Description:
++ * This driver is developed for AXI Performance Monitor IP,
++ * designed to monitor AXI4 traffic for performance analysis
++ * of AXI bus in the system. Driver maps HW registers and parameters
++ * to userspace. Userspace need not clear the interrupt of IP since
++ * driver clears the interrupt.
++ */
++
++#include <linux/clk.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/uio_driver.h>
++#include <linux/dma-mapping.h>
++#include <linux/cache.h>
++#include <linux/dma-buf.h>
++
++#define XAPM_IS_OFFSET		0x0038  /* Interrupt Status Register */
++#define DRV_NAME		    "rice_accel_uio"
++#define DRV_VERSION		    "1.0"
++#define UIO_DUMMY_MEMSIZE	0x11D000
++#define XAPM_MODE_ADVANCED	1
++#define XAPM_MODE_PROFILE	2
++#define XAPM_MODE_TRACE		3
++
++struct rice_regs {
++	volatile u32 cr;
++	volatile u32 gie;
++	volatile u32 ier;
++	volatile u32 isr;
++};
++
++/**
++ * struct rice_accel_dev - Global driver structure
++ * @info: uio_info structure
++ * @regs: IOmapped base address
++ */
++struct rice_accel_dev {
++	struct uio_info 	info;
++	void __iomem*		regs;
++    void*               dma_buffer;
++    dma_addr_t          dma_phy_addr;
++    u32                 dma_buf_size;
++    struct platform_device *pdev;
++};
++
++/**
++ * xapm_handler - Interrupt handler for APM
++ * @irq: IRQ number
++ * @info: Pointer to uio_info structure
++ *
++ * Return: Always returns IRQ_HANDLED
++ */
++static irqreturn_t rice_accel_handler(int irq, struct uio_info *info)
++{
++	struct rice_accel_dev *rice = (struct rice_accel_dev *)info->priv;
++	struct rice_regs * regs = (struct rice_regs*)rice->regs;
++	// Clear the ISR
++	volatile u32 isr = regs->isr;
++    dev_dbg(&rice->pdev->dev, "Rice accel IRQ, isr: %02x\n", isr);
++	return IRQ_HANDLED;
++}
++
++/**
++ * rice_accel_probe - Driver probe function
++ * @pdev: Pointer to the platform_device structure
++ *
++ * Returns: '0' on success and failure value on error
++ */
++
++static int rice_accel_probe(struct platform_device *pdev)
++{
++	struct rice_accel_dev *dev;
++	struct resource *res;
++	int irq;
++	int ret;
++
++	dev = devm_kzalloc(&pdev->dev, (sizeof(struct rice_accel_dev)), GFP_KERNEL);
++	if (!dev)
++		return -ENOMEM;
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	dev->regs = devm_ioremap_resource(&pdev->dev, res);
++	if (IS_ERR(dev->regs)) {
++		dev_err(&pdev->dev, "unable to iomap registers\n");
++		return PTR_ERR(dev->regs);
++	}
++
++	dev->info.mem[0].name = "rice_accel";
++	dev->info.mem[0].addr = res->start;
++	dev->info.mem[0].size = resource_size(res);
++	dev->info.mem[0].memtype = UIO_MEM_PHYS;
++
++	dev->dma_buffer = dma_alloc_noncoherent(&pdev->dev,
++							  	PAGE_ALIGN(UIO_DUMMY_MEMSIZE),
++							    &dev->dma_phy_addr,
++								DMA_BIDIRECTIONAL,
++							    GFP_KERNEL);
++	dev_dbg(&pdev->dev, "dmam_alloc_attrs = %16llx  %16llx\n",
++			(u64)dev->dma_buffer, (u64)dev->dma_phy_addr);
++
++	dev->info.mem[1].name = "DMA buf";
++	dev->info.mem[1].addr = dev->dma_phy_addr;
++	dev->info.mem[1].size = UIO_DUMMY_MEMSIZE;
++	dev->info.mem[1].memtype = UIO_MEM_PHYS;
++
++	dev->info.name = "rice-accel-uio";
++	dev->info.version = DRV_VERSION;
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0) {
++		dev_err(&pdev->dev, "unable to get irq\n");
++		ret = irq;
++		goto handle_error;
++	}
++
++	dev->info.irq = irq;
++	dev->info.handler = rice_accel_handler;
++	dev->info.priv = dev;
++	dev->info.irq_flags = IRQF_SHARED;
++
++	ret = uio_register_device(&pdev->dev, &dev->info);
++	if (ret < 0) {
++		dev_err(&pdev->dev, "unable to register to UIO\n");
++		goto handle_error;
++	}
++
++	platform_set_drvdata(pdev, dev);
++    dev->pdev = pdev;
++
++	dev_info(&pdev->dev, "Probed Rice Accel\n");
++
++	return 0;
++
++handle_error:
++	return ret;
++}
++
++/**
++ * rice_accel_remove - Driver remove function
++ * @pdev: Pointer to the platform_device structure
++ *
++ * Return: Always returns '0'
++ */
++static int rice_accel_remove(struct platform_device *pdev)
++{
++	struct rice_accel_dev *dev = platform_get_drvdata(pdev);
++
++    //dma_free_coherent(&pdev->dev, dev->dma_buf_size, dev->dma_buffer, dev->dma_phy_addr);
++	uio_unregister_device(&dev->info);
++
++	return 0;
++}
++
++static const struct of_device_id rice_accel_of_match[] = {
++	{ .compatible = "xlnx,Rice-Compress-accel-1.2", },
++	{ /* end of table*/ }
++};
++
++MODULE_DEVICE_TABLE(of, rice_accel_of_match);
++
++static struct platform_driver rice_accel_driver = {
++	.driver = {
++		.name = DRV_NAME,
++		.of_match_table = rice_accel_of_match,
++	},
++	.probe = rice_accel_probe,
++	.remove = rice_accel_remove,
++};
++
++module_platform_driver(rice_accel_driver);
++
++MODULE_AUTHOR("Nick Butts <ButtsNicholasL@JohnDeere.com>");
++MODULE_DESCRIPTION("Rice Compressor Accelerator");
++MODULE_LICENSE("GPL v2");
