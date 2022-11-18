@@ -102,7 +102,7 @@
 *************************************************************************/
 
 #include "rice.h"
-
+#include "timeit.h"
 
 
 /*************************************************************************
@@ -596,10 +596,12 @@ Rice::~Rice()
 int Rice::compress( std::vector<int16_t> &in,
                     std::vector<uint8_t> &out)
 {
+    Timeit t("SW Rice Compress");
     // Make out as large as the input data
     out.resize(in.size() * 2);
     int outsize = Rice_Compress(in.data(), out.data(), in.size() * 2, RICE_FMT_INT16);
     out.resize(outsize);
+    t.print();
     return outsize;
 }
 

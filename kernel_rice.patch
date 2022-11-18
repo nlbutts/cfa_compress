@@ -51,7 +51,7 @@ diff -urpN kernel_old/drivers/uio/rice_accel.c kernel_new/drivers/uio/rice_accel
 +#define XAPM_IS_OFFSET		0x0038  /* Interrupt Status Register */
 +#define DRV_NAME		    "rice_accel_uio"
 +#define DRV_VERSION		    "1.0"
-+#define UIO_DUMMY_MEMSIZE	0x11D000
++#define UIO_DUMMY_MEMSIZE	0x1000000
 +#define XAPM_MODE_ADVANCED	1
 +#define XAPM_MODE_PROFILE	2
 +#define XAPM_MODE_TRACE		3

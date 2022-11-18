@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "HWAccelRice.h"
+#include "timeit.h"
 
 #define PAGE_ALIGN(addr) (((addr / 4096) + 1) * 4096)
 
@@ -30,11 +31,9 @@ HWAccelRice::~HWAccelRice()
 int HWAccelRice::compress( std::vector<int16_t> &in,
                            std::vector<uint8_t> &out)
 {
-    volatile int16_t * src = (volatile int16_t *)_inst.dmabuf_virt_addr;
-    for (int i = 0; i < in.size(); i++)
-    {
-        src[i] = in[i];
-    }
+    memcpy((void*)_inst.dmabuf_virt_addr, in.data(), in.size() * 2);
+
+    Timeit t2("Rice Compress");
 
     int offset = PAGE_ALIGN(in.size() * 2);
     XRice_compress_accel_Set_indata(&_inst, _inst.dmabuf_phy_addr);
@@ -47,18 +46,17 @@ int HWAccelRice::compress( std::vector<int16_t> &in,
     XRice_compress_accel_Start(&_inst);
 
     u32 count;
-    read(_fd, &count, 4);
+    (void)read(_fd, &count, 4);
 
+    t2.print();
+
+    XRice_compress_accel_Set_k(&_inst, 7);
     u32 compsize = XRice_compress_accel_Get_return(&_inst);
     printf("Compressed size: %d bytes count: %d\n", compsize, count);
 
-    volatile uint8_t * compdata = (volatile uint8_t*)_inst.dmabuf_virt_addr;
+    uint8_t * compdata = (uint8_t*)_inst.dmabuf_virt_addr + offset;
     out.clear();
-    for (int i = 0; i < compsize; i++)
-    {
-        uint8_t data = compdata[i + offset];
-        out.push_back(data);
-    }
+    std::copy(&compdata[0], &compdata[compsize], std::back_inserter(out));
 
     return compsize;
 }

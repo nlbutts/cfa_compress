@@ -259,7 +259,7 @@ CSRC = drivers/xrice_compress_accel.c \
 OBJDIR = obj
 CPPOBJS := $(CPPSRC:%.cpp=$(OBJDIR)/%.o)
 COBJS += $(CSRC:%.c=$(OBJDIR)/%.o)
-CFLAGS = -std=c++14 -O0 -I/usr/local/include/opencv4 -g -DHW_IMPLEMENTATION
+CFLAGS = -std=c++14 -O3 -I/usr/local/include/opencv4 -g -DHW_IMPLEMENTATION
 
 
 clean:
