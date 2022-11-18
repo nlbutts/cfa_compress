@@ -22,11 +22,11 @@ set PRJROOT $env(PRJROOT)
 #set VITIS_LIB /home/nlbutts/projects/vitis_isp/Vitis_Libraries/vision
 set CFLAGS " -I ${OPENCV_INCLUDE} -I ./ -D__SDSVHLS__ -std=c++14"
 set INFILE "${PRJROOT}/data/small.png"
-set WAVE 1
+set WAVE 0
 
 
 if {![info exists CLKP]} {
-  set CLKP 2.5
+  set CLKP 3.2
 }
 
 open_project -reset $PROJ

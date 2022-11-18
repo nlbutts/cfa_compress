@@ -14,7 +14,7 @@ typedef ap_axiu<8, 1, 1, 1> compdata;
 
 typedef struct {
     uint8_t*        outdata;
-    unsigned int    index;
+    unsigned int    total_bytes;
     ap_uint<64>     bits;
     ap_uint<8>      bitcount;
 } rice_bitstream_t;
@@ -43,7 +43,7 @@ static void _Rice_InitBitstream( rice_bitstream_t *stream,
 {
     stream->outdata     = outdata;
     stream->bits        = 0;
-    stream->index       = 0;
+    stream->total_bytes       = 0;
     stream->bitcount    = 0;
 }
 
@@ -54,7 +54,8 @@ static void _Rice_InitBitstream( rice_bitstream_t *stream,
 
 static void _Rice_EncodeWord( ap_uint<16> x,
                               uint16_t k,
-                              rice_bitstream_t *stream )
+                              ap_uint<64>  *bits,
+                              ap_uint<8>   *bitcount )
 {
 	ap_uint<4>  i;
     ap_uint<10> q;
@@ -69,9 +70,9 @@ static void _Rice_EncodeWord( ap_uint<16> x,
     /* Too large rice code? */
     if( q > RICE_THRESHOLD )
     {
-        stream->bits <<= RICE_THRESHOLD;
-        stream->bits.range(RICE_THRESHOLD - 1, 0) = temp.range(RICE_THRESHOLD - 1, 0);
-        stream->bitcount += RICE_THRESHOLD;
+        *bits <<= RICE_THRESHOLD;
+        bits->range(RICE_THRESHOLD - 1, 0) = temp.range(RICE_THRESHOLD - 1, 0);
+        *bitcount += RICE_THRESHOLD;
 
         /* Encode the overflow with alternate coding */
         q -= RICE_THRESHOLD;
@@ -80,35 +81,28 @@ static void _Rice_EncodeWord( ap_uint<16> x,
         o = _Rice_NumBits( q );
 
         temp[0] = 0;
-        stream->bits <<= o + 1;
-        stream->bits.range(o, 0) = temp.range(o, 0);
-        stream->bitcount += o + 1;
+        *bits <<= o + 1;
+        bits->range(o, 0) = temp.range(o, 0);
+        *bitcount += o + 1;
 
         if (o >= 2)
         {
-            stream->bits <<= (o - 2) + 1;
-            stream->bits.range(o - 2, 0) = q.range(o - 2, 0);
-            stream->bitcount += (o - 2) + 1;
+            *bits <<= (o - 2) + 1;
+            bits->range(o - 2, 0) = q.range(o - 2, 0);
+            *bitcount += (o - 2) + 1;
         }
 
-        stream->bits <<= k;
-        stream->bits.range(k - 1, 0) = x.range(k - 1, 0);
-        stream->bitcount += k;
+        *bits <<= k;
+        bits->range(k - 1, 0) = x.range(k - 1, 0);
+        *bitcount += k;
     }
     else
     {
         temp[0] = 0;
-        stream->bits <<= q + 1 + k;
-        stream->bits.range(q + k, k) = temp.range(q, 0);
-        stream->bits.range(k - 1, 0) = x.range(k - 1, 0);
-        stream->bitcount += (q + 1 + k);
-    }
-
-    while (stream->bitcount > 8)
-    {
-        *(stream->outdata + stream->index) = stream->bits.range(stream->bitcount - 1, stream->bitcount - 8);
-        stream->bitcount -= 8;
-        stream->index++;
+        *bits <<= q + 1 + k;
+        bits->range(q + k, k) = temp.range(q, 0);
+        bits->range(k - 1, 0) = x.range(k - 1, 0);
+        *bitcount += (q + 1 + k);
     }
 }
 
@@ -118,19 +112,21 @@ int Rice_Compress(const int16_t* indata,
                   unsigned int insize,
                   uint16_t k )
 {
-    rice_bitstream_t    stream;
     unsigned int        i, incount;
     ap_uint<4>          hist[ RICE_HISTORY ] = {0};
     ap_uint<5>          j;
     int16_t             sx;
     uint16_t            x;
     uint16_t            sumk = 0;
+    unsigned int        total_bytes = 0;
+    ap_uint<64>         bits = 0;
+    ap_uint<8>          bitcount = 0;
+    ap_uint<5>          hist_index;
 
-    _Rice_InitBitstream(&stream, outdata);
-    *outdata = k;
-    stream.index++;
+    outdata[0] = k;
+    total_bytes++;
 
-    for (i = 0; i < RICE_HISTORY; i++)
+    init: for (i = 0; i < RICE_HISTORY; i++)
     {
         hist[i] = 0;
     }
@@ -139,7 +135,7 @@ int Rice_Compress(const int16_t* indata,
     incount = insize >> 1;
 
     /* Encode input stream */
-    for( i = 0; i < incount; ++ i )
+    main: for( i = 0; i < incount; ++ i )
     {
         /* Revise optimum k? */
         if( i >= RICE_HISTORY )
@@ -152,13 +148,22 @@ int Rice_Compress(const int16_t* indata,
         x = sx < 0 ? -1-(sx<<1) : sx<<1;
 
         /* Encode word to output buffer */
-        _Rice_EncodeWord( x, k, &stream );
+        _Rice_EncodeWord( x, k, &bits, &bitcount );
 
         /* Update history */
-        sumk -= hist[i % RICE_HISTORY];
-        hist[ i % RICE_HISTORY ] = _Rice_NumBits( x );
-        sumk += hist[ i % RICE_HISTORY ];
+
+        hist_index = i & (RICE_HISTORY - 1);
+        sumk -= hist[hist_index];
+        hist[ hist_index ] = _Rice_NumBits( x );
+        sumk += hist[ hist_index ];
         //printf("k: %d sumk: %d\n", k, sumk);
+        output: while (bitcount > 8)
+        {
+            #pragma HLS loop_tripcount min=0 max=3 avg=1
+            outdata[total_bytes] = bits.range(bitcount - 1, bitcount - 8);
+            bitcount -= 8;
+            total_bytes++;
+        }
     }
 
     // /* Was there a buffer overflow? */
@@ -171,10 +176,10 @@ int Rice_Compress(const int16_t* indata,
     // }
 
     // Flush the last few bits
-    stream.bits <<= (8 - stream.bitcount);
-    *(outdata + stream.index) = stream.bits.range(7, 0);
+    bits <<= (8 - bitcount);
+    outdata[total_bytes] = bits.range(7, 0);
 
-    return stream.index + 1;
+    return total_bytes + 1;
 }
 
 int Rice_Compress_accel( const int16_t* indata,
@@ -186,12 +191,8 @@ int Rice_Compress_accel( const int16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=insize
 #pragma HLS INTERFACE mode=s_axilite port=k
 //#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=256 bundle=gem1 \
-                            num_read_outstanding=1 num_write_outstanding=1 \
-                            max_read_burst_length=16 max_write_burst_length=1
-#pragma HLS INTERFACE m_axi port=outdata depth=256 bundle=gem1 \
-                            num_read_outstanding=1 num_write_outstanding=1 \
-                            max_read_burst_length=16 max_write_burst_length=1
+#pragma HLS INTERFACE m_axi port=indata depth=8192 bundle=gem1 max_widen_bitwidth=128
+#pragma HLS INTERFACE m_axi port=outdata depth=8192 bundle=gem1 max_widen_bitwidth=128
 
 // num_read_outstanding=<int> num_write_outstanding=<int> \
 // max_read_burst_length=<int> max_write_burst_length=<int>
@@ -201,9 +202,14 @@ int Rice_Compress_accel( const int16_t* indata,
 int AccelRice::compress( std::vector<int16_t> &in,
                          std::vector<uint8_t> &out)
 {
-    out.resize(1000000);
-    int size = Rice_Compress_accel(in.data(), out.data(), in.size() * 2, 7);
+    uint8_t * dst = new uint8_t[in.size() * 2];
+    int size = Rice_Compress_accel(in.data(), dst, in.size() * 2, 7);
     out.resize(size);
+    for (int i = 0; i < size; i++)
+    {
+        out[i] = dst[i];
+    }
+    delete [] dst;
     return size;
 }
 
