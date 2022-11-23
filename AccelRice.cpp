@@ -3,7 +3,6 @@
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
 
-
 #define RICE_HISTORY    16
 #define RICE_WORD       16
 #define BITS            16
@@ -191,8 +190,8 @@ int Rice_Compress_accel( const int16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=insize
 #pragma HLS INTERFACE mode=s_axilite port=k
 //#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=8192 bundle=gem1 max_widen_bitwidth=128
-#pragma HLS INTERFACE m_axi port=outdata depth=8192 bundle=gem1 max_widen_bitwidth=128
+#pragma HLS INTERFACE m_axi port=indata depth=128 bundle=gem1 max_widen_bitwidth=128
+#pragma HLS INTERFACE m_axi port=outdata depth=128 bundle=gem1 max_widen_bitwidth=128
 
 // num_read_outstanding=<int> num_write_outstanding=<int> \
 // max_read_burst_length=<int> max_write_burst_length=<int>

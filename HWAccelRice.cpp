@@ -33,7 +33,7 @@ int HWAccelRice::compress( std::vector<int16_t> &in,
 {
     memcpy((void*)_inst.dmabuf_virt_addr, in.data(), in.size() * 2);
 
-    Timeit t2("Rice Compress");
+    Timeit t2("HW Rice Compress");
 
     int offset = PAGE_ALIGN(in.size() * 2);
     XRice_compress_accel_Set_indata(&_inst, _inst.dmabuf_phy_addr);

@@ -80,7 +80,7 @@ int main(int argc, char ** argv)
 
     comp_data.clear();
     {
-        Timeit comptime("Accel Compression time");
+        Timeit comptime("HW Accel Total Compression time");
         cfaComp3.compress(inimg, comp_data);
     }
     {
