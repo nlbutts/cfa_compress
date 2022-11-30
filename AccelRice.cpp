@@ -106,8 +106,8 @@ static void _Rice_EncodeWord( ap_uint<16> x,
 }
 
 
-int Rice_Compress(const int16_t* indata,
-                  uint8_t* outdata,
+int Rice_Compress(hls::stream<int16_t> * instream,
+                  hls::stream<uint8_t> * outstream,
                   unsigned int insize,
                   uint16_t k )
 {
@@ -122,7 +122,7 @@ int Rice_Compress(const int16_t* indata,
     ap_uint<8>          bitcount = 0;
     ap_uint<5>          hist_index;
 
-    outdata[0] = k;
+    outstream->write(k);
     total_bytes++;
 
     init: for (i = 0; i < RICE_HISTORY; i++)
@@ -143,7 +143,7 @@ int Rice_Compress(const int16_t* indata,
         }
 
         /* Read word from input buffer */
-        sx = *(indata + i);
+        sx = instream->read();
         x = sx < 0 ? -1-(sx<<1) : sx<<1;
 
         /* Encode word to output buffer */
@@ -159,30 +159,21 @@ int Rice_Compress(const int16_t* indata,
         output: while (bitcount > 8)
         {
             #pragma HLS loop_tripcount min=0 max=3 avg=1
-            outdata[total_bytes] = bits.range(bitcount - 1, bitcount - 8);
+            outstream->write(bits.range(bitcount - 1, bitcount - 8));
             bitcount -= 8;
             total_bytes++;
         }
     }
 
-    // /* Was there a buffer overflow? */
-    // if( i < incount )
-    // {
-    //     //printf("OVERFLOW\n");
-    // }
-    // else
-    // {
-    // }
-
     // Flush the last few bits
     bits <<= (8 - bitcount);
-    outdata[total_bytes] = bits.range(7, 0);
+    outstream->write(bits.range(7, 0));
 
     return total_bytes + 1;
 }
 
-int Rice_Compress_accel( const int16_t* indata,
-                         uint8_t* outdata,
+int Rice_Compress_accel( hls::stream<int16_t> * instream,
+                         hls::stream<uint8_t> * outstream,
                          unsigned int insize,
                          int k )
 {
@@ -190,25 +181,29 @@ int Rice_Compress_accel( const int16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=insize
 #pragma HLS INTERFACE mode=s_axilite port=k
 //#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=128 bundle=gem1 max_widen_bitwidth=128
-#pragma HLS INTERFACE m_axi port=outdata depth=128 bundle=gem1 max_widen_bitwidth=128
+#pragma HLS INTERFACE axis port=instream
+#pragma HLS INTERFACE axis port=outstream
 
 // num_read_outstanding=<int> num_write_outstanding=<int> \
 // max_read_burst_length=<int> max_write_burst_length=<int>
-    return Rice_Compress(indata, outdata, insize, k);
+    return Rice_Compress(instream, outstream, insize, k);
 }
 
 int AccelRice::compress( std::vector<int16_t> &in,
                          std::vector<uint8_t> &out)
 {
-    uint8_t * dst = new uint8_t[in.size() * 2];
-    int size = Rice_Compress_accel(in.data(), dst, in.size() * 2, 7);
-    out.resize(size);
+    hls::stream<int16_t> instream;
+    hls::stream<uint8_t> outstream;
+    for (auto it = in.cbegin(); it != in.cend(); ++it)
+    {
+        instream.write(*it);
+    }
+    int size = Rice_Compress_accel(&instream, &outstream, in.size() * 2, 7);
+
     for (int i = 0; i < size; i++)
     {
-        out[i] = dst[i];
+        out.push_back(outstream.read());
     }
-    delete [] dst;
     return size;
 }
 
