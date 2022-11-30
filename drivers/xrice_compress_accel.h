@@ -46,10 +46,6 @@ typedef struct {
 typedef struct {
     u64 Control_BaseAddress;
     u32 IsReady;
-    u64 dmabuf_phy_addr;
-    u64 dmabuf_virt_addr;
-    u32 buf_size;
-    char devnode[100];
 } XRice_compress_accel;
 
 typedef u32 word_type;
@@ -93,10 +89,6 @@ void XRice_compress_accel_EnableAutoRestart(XRice_compress_accel *InstancePtr);
 void XRice_compress_accel_DisableAutoRestart(XRice_compress_accel *InstancePtr);
 u32 XRice_compress_accel_Get_return(XRice_compress_accel *InstancePtr);
 
-void XRice_compress_accel_Set_indata(XRice_compress_accel *InstancePtr, u64 Data);
-u64 XRice_compress_accel_Get_indata(XRice_compress_accel *InstancePtr);
-void XRice_compress_accel_Set_outdata(XRice_compress_accel *InstancePtr, u64 Data);
-u64 XRice_compress_accel_Get_outdata(XRice_compress_accel *InstancePtr);
 void XRice_compress_accel_Set_insize(XRice_compress_accel *InstancePtr, u32 Data);
 u32 XRice_compress_accel_Get_insize(XRice_compress_accel *InstancePtr);
 void XRice_compress_accel_Set_k(XRice_compress_accel *InstancePtr, u32 Data);

@@ -186,7 +186,7 @@ diff -urpN kernel_old/drivers/uio/rice_accel.c kernel_new/drivers/uio/rice_accel
 +}
 +
 +static const struct of_device_id rice_accel_of_match[] = {
-+	{ .compatible = "xlnx,Rice-Compress-accel-1.2", },
++	{ .compatible = "xlnx,Rice-Compress-accel-1.4", },
 +	{ /* end of table*/ }
 +};
 +

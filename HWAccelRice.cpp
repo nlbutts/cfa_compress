@@ -14,10 +14,18 @@ HWAccelRice::HWAccelRice()
         return;
     }
 
-    _fd = open(_inst.devnode, O_RDONLY);
+    _fd = open("/dev/uio4", O_RDONLY);
     if (_fd <= 0)
     {
         printf("Failed to open uio dev node\n");
+        assert(true);
+        return;
+    }
+
+    _fifo = open("/dev/axis_fifo_0x00000000a0000000", O_RDWR);
+    if (_fifo <= 0)
+    {
+        printf("Failed to open the FIFO");
         assert(true);
         return;
     }
@@ -25,26 +33,32 @@ HWAccelRice::HWAccelRice()
 
 HWAccelRice::~HWAccelRice()
 {
-
+    close(_fifo);
+    close(_fd);
 }
 
 int HWAccelRice::compress( std::vector<int16_t> &in,
                            std::vector<uint8_t> &out)
 {
-    memcpy((void*)_inst.dmabuf_virt_addr, in.data(), in.size() * 2);
-
+    printf("Starting HW Rice Compress\n");
     Timeit t2("HW Rice Compress");
 
-    int offset = PAGE_ALIGN(in.size() * 2);
-    XRice_compress_accel_Set_indata(&_inst, _inst.dmabuf_phy_addr);
-    XRice_compress_accel_Set_outdata(&_inst, _inst.dmabuf_phy_addr + offset);
     XRice_compress_accel_Set_k(&_inst, 7);
     XRice_compress_accel_Set_insize(&_inst, in.size() * 2);
     XRice_compress_accel_InterruptGlobalEnable(&_inst);
     XRice_compress_accel_InterruptEnable(&_inst, 1);
-
     XRice_compress_accel_Start(&_inst);
 
+    uint8_t buf[100];
+
+    uint8_t * ptr = (uint8_t*)in.data();
+    for (int i = 0; i < in.size(); i += 512)
+    {
+        write(_fifo, &ptr[i], 512);
+    }
+
+    // Wait for the Accel to be done
+    printf("Waiting for Rice Accel to complete\n");
     u32 count;
     (void)read(_fd, &count, 4);
 
@@ -54,9 +68,15 @@ int HWAccelRice::compress( std::vector<int16_t> &in,
     u32 compsize = XRice_compress_accel_Get_return(&_inst);
     printf("Compressed size: %d bytes count: %d\n", compsize, count);
 
-    uint8_t * compdata = (uint8_t*)_inst.dmabuf_virt_addr + offset;
-    out.clear();
-    std::copy(&compdata[0], &compdata[compsize], std::back_inserter(out));
+    for (int i = 0; i < compsize; i++)
+    {
+        uint8_t buf;
+        int rsize = read(_fifo, &buf, 1);
+        if (rsize == 1)
+        {
+            out.push_back(buf);
+        }
+    }
 
     return compsize;
 }

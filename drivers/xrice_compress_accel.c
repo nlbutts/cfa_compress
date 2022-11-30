@@ -83,44 +83,6 @@ u32 XRice_compress_accel_Get_return(XRice_compress_accel *InstancePtr) {
     Data = XRice_compress_accel_ReadReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_AP_RETURN);
     return Data;
 }
-void XRice_compress_accel_Set_indata(XRice_compress_accel *InstancePtr, u64 Data) {
-    Xil_AssertVoid(InstancePtr != NULL);
-    Xil_AssertVoid(InstancePtr->IsReady == XIL_COMPONENT_IS_READY);
-
-    XRice_compress_accel_WriteReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_INDATA_DATA, (u32)(Data));
-    XRice_compress_accel_WriteReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_INDATA_DATA + 4, (u32)(Data >> 32));
-}
-
-u64 XRice_compress_accel_Get_indata(XRice_compress_accel *InstancePtr) {
-    u64 Data;
-
-    Xil_AssertNonvoid(InstancePtr != NULL);
-    Xil_AssertNonvoid(InstancePtr->IsReady == XIL_COMPONENT_IS_READY);
-
-    Data = XRice_compress_accel_ReadReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_INDATA_DATA);
-    Data += (u64)XRice_compress_accel_ReadReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_INDATA_DATA + 4) << 32;
-    return Data;
-}
-
-void XRice_compress_accel_Set_outdata(XRice_compress_accel *InstancePtr, u64 Data) {
-    Xil_AssertVoid(InstancePtr != NULL);
-    Xil_AssertVoid(InstancePtr->IsReady == XIL_COMPONENT_IS_READY);
-
-    XRice_compress_accel_WriteReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_OUTDATA_DATA, (u32)(Data));
-    XRice_compress_accel_WriteReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_OUTDATA_DATA + 4, (u32)(Data >> 32));
-}
-
-u64 XRice_compress_accel_Get_outdata(XRice_compress_accel *InstancePtr) {
-    u64 Data;
-
-    Xil_AssertNonvoid(InstancePtr != NULL);
-    Xil_AssertNonvoid(InstancePtr->IsReady == XIL_COMPONENT_IS_READY);
-
-    Data = XRice_compress_accel_ReadReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_OUTDATA_DATA);
-    Data += (u64)XRice_compress_accel_ReadReg(InstancePtr->Control_BaseAddress, XRICE_COMPRESS_ACCEL_CONTROL_ADDR_OUTDATA_DATA + 4) << 32;
-    return Data;
-}
-
 void XRice_compress_accel_Set_insize(XRice_compress_accel *InstancePtr, u32 Data) {
     Xil_AssertVoid(InstancePtr != NULL);
     Xil_AssertVoid(InstancePtr->IsReady == XIL_COMPONENT_IS_READY);

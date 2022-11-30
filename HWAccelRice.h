@@ -41,6 +41,7 @@ public:
 private:
     XRice_compress_accel    _inst;
     int                     _fd;
+    int                     _fifo;
 };
 
 #endif // _HW_ACCELRICE_H_

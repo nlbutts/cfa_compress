@@ -7,8 +7,6 @@
 
 /***************************** Include Files *********************************/
 #include "xrice_compress_accel.h"
-#include <limits.h>
-#include <errno.h>
 
 /***************** Macros (Inline Functions) Definitions *********************/
 #define MAX_UIO_PATH_SIZE       256
@@ -68,7 +66,7 @@ static int uio_info_read_map_addr(XRice_compress_accel_uio_info* info, int n) {
     sprintf(file, "/sys/class/uio/uio%d/maps/map%d/addr", info->uio_num, n);
     FILE* fp = fopen(file, "r");
     if (!fp) return -1;
-    ret = fscanf(fp, "0x%lx", &info->maps[n].addr);
+    ret = fscanf(fp, "0x%x", &info->maps[n].addr);
     fclose(fp);
     if (ret < 0) return -2;
     return 0;
@@ -128,15 +126,6 @@ int XRice_compress_accel_Initialize(XRice_compress_accel *InstancePtr, const cha
     // NOTE: slave interface 'Control' should be mapped to uioX/map0
     InstancePtr->Control_BaseAddress = (u64)mmap(NULL, InfoPtr->maps[0].size, PROT_READ|PROT_WRITE, MAP_SHARED, InfoPtr->uio_fd, 0 * getpagesize());
     assert(InstancePtr->Control_BaseAddress);
-    InstancePtr->dmabuf_phy_addr = InfoPtr->maps[1].addr;
-    InstancePtr->dmabuf_virt_addr = (u64)mmap(NULL, InfoPtr->maps[1].size, PROT_READ|PROT_WRITE, MAP_SHARED, InfoPtr->uio_fd, 1 * getpagesize());
-    printf("mmap memory: %08lX\n", InstancePtr->dmabuf_virt_addr);
-    if (InstancePtr->dmabuf_virt_addr == 0xFFFFFFFF)
-        printf("%s\n", strerror(errno));
-    assert(InstancePtr->dmabuf_virt_addr < ULONG_MAX);
-
-    InstancePtr->buf_size = InfoPtr->maps[1].size;
-    strcpy(InstancePtr->devnode, file);
 
     InstancePtr->IsReady = XIL_COMPONENT_IS_READY;
 
