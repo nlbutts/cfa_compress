@@ -22,7 +22,7 @@ void CfaComp::append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t
 int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
 {
     // This will return a vector of vectors
-    auto compdata = _rice->compress(img);
+    auto compdata = _rice->compress((uint16_t*)img.data, img.rows, img.cols);
     CfaCompData header;
     header.type[0] = 'C';
     header.type[1] = 'F';

@@ -20,10 +20,14 @@ public:
      * @brief This is the rice compression method. It takes a signed int16
      * input data and generates the compressed output.
      *
-     * @param img a reference to an OpenCV image
+     * @param imgdata a pointer to the pointer to the image data
+     * @param width the width of the image in pixels
+     * @param height the height of the image in pixels
      * @return vector of vectors of uint8_t containing channel data
      */
-    std::vector<std::vector<uint8_t> > compress( cv::Mat &img);
+    std::vector<std::vector<uint8_t> > compress(uint16_t * imgdata,
+                                                uint32_t width,
+                                                uint32_t height);
 
     /**
      * @brief THIS IS NOT IMPLEMENTED

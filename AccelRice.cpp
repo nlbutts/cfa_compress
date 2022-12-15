@@ -3,7 +3,6 @@
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
 #include <memory.h>
-#include "opencv2/opencv.hpp"
 
 #define RICE_HISTORY    16
 #define RICE_WORD       16
@@ -178,15 +177,13 @@ void Rice_Compress_accel( const uint16_t* indata,
                          uint32_t out_offset,
                          int k )
 {
-//#pragma HLS AGGREGATE compact=byte variable=outdata
-//#pragma HLS AGGREGATE compact=byte variable=indata
 #pragma HLS INTERFACE mode=s_axilite port=width
 #pragma HLS INTERFACE mode=s_axilite port=height
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
-#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=128 bundle=gem0 max_widen_bitwidth=128 num_read_outstanding=16
-#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=128 max_widen_bitwidth=128 max_write_burst_length=64 num_write_outstanding=16 port=outdata
+//#pragma HLS DATAFLOW
+#pragma HLS INTERFACE m_axi port=indata depth=512 bundle=gem0 max_widen_bitwidth=128 num_read_outstanding=16
+#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=512 max_widen_bitwidth=128 max_write_burst_length=64 num_write_outstanding=16 port=outdata
 
     rice_bitstream_t p[4];
     _Rice_init(p[0]);
@@ -194,7 +191,9 @@ void Rice_Compress_accel( const uint16_t* indata,
     _Rice_init(p[2]);
     _Rice_init(p[3]);
     hls::stream<uint16_t> instream;
+#pragma HLS stream variable=instream type=fifo depth=64
     hls::stream<uint8_t>  outstream;
+#pragma HLS stream variable=outstream type=fifo depth=64
     // The first four bytes are the total size of the compressed data that follows
     uint32_t out_index[4];
     uint32_t offsets[4];
@@ -253,7 +252,9 @@ void Rice_Compress_accel( const uint16_t* indata,
     }
 }
 
-std::vector<std::vector<uint8_t> > AccelRice::compress(cv::Mat &img)
+std::vector<std::vector<uint8_t> > AccelRice::compress(uint16_t * imgdata,
+                                                       uint32_t width,
+                                                       uint32_t height)
 {
 /*
 The input image data should be contiguous. But the compressed will not be.
@@ -265,16 +266,15 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
 | ch1 size      || ch1 compressed data     |     | ch2 size     || ch2 compressed data  |
 +---------------++-------------------------+     +--------------++----------------------+
  */
-    uint32_t total_pixels = img.rows * img.cols;
+    uint32_t total_pixels = width * height;
     // Align the offset for the channels
     uint32_t offset = (((total_pixels / 4) / 64) + 1) * 64;
     uint8_t * comp_data = new uint8_t[total_pixels * 4];
     uint32_t comp_size[4];
-    printf("Total pixels: %d  offset: %d [%x]\n", total_pixels, offset, offset);
-    Rice_Compress_accel((uint16_t*)img.data,
+    Rice_Compress_accel(imgdata,
                         comp_data,
-                        img.cols,
-                        img.rows,
+                        width,
+                        height,
                         offset,
                         7);
 

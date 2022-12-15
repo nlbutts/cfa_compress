@@ -102,7 +102,6 @@
 *************************************************************************/
 
 #include "rice.h"
-#include "opencv2/opencv.hpp"
 
 /*************************************************************************
 * Constants used for Rice coding
@@ -592,9 +591,11 @@ Rice::~Rice()
     // Do nothing
 }
 
-std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
+std::vector<std::vector<uint8_t> > Rice::compress(uint16_t * imgdata,
+                                                  uint32_t width,
+                                                  uint32_t height)
 {
-    int total_pixels = img.rows * img.cols;
+    int total_pixels = width * height;
     std::vector<int16_t> channels[4];
     std::vector<uint8_t> comp_data[4];
     int channel_index[4] = {0};
@@ -606,12 +607,12 @@ std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
 
     // Split the bayer image into RGGB planes
     uint16_t prev_pixel[4];
-    for (int y = 0; y < img.rows; y++)
+    for (int y = 0; y < height; y++)
     {
-        for (int x = 0; x < img.cols; x++)
+        for (int x = 0; x < width; x++)
         {
             int index = ((y & 1) << 1) + (x & 1);
-            uint16_t pixel = img.at<uint16_t>(y, x);
+            uint16_t pixel = imgdata[(y * width) + x];
             if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
             {
                 channels[index][channel_index[index]] = pixel;
