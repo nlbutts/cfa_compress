@@ -102,7 +102,6 @@
 *************************************************************************/
 
 #include "rice.h"
-#include "timeit.h"
 #include "opencv2/opencv.hpp"
 
 /*************************************************************************
@@ -595,8 +594,6 @@ Rice::~Rice()
 
 std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
 {
-    Timeit t("SW Rice Compress");
-
     int total_pixels = img.rows * img.cols;
     std::vector<int16_t> channels[4];
     std::vector<uint8_t> comp_data[4];
@@ -648,7 +645,6 @@ std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
     }
 
     // Make out as large as the input data
-    t.print();
     return outdata;
 }
 

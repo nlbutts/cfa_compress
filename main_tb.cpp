@@ -44,10 +44,12 @@ int main(int argc, char ** argv)
     {
         Timeit comptime("Compression time");
         cfaComp.compress(inimg, comp_data);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");
         cfaComp.decompress(comp_data, outimg);
+        comptime.print();
     }
 
     cv::imwrite("ref.png", outimg);
@@ -62,10 +64,12 @@ int main(int argc, char ** argv)
     {
         Timeit comptime("Accel Compression time");
         cfaComp2.compress(inimg, comp_data);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");
         cfaComp.decompress(comp_data, outimg);
+        comptime.print();
     }
 
     cv::imwrite("ref2.png", outimg);
