@@ -1,4 +1,3 @@
 break main
-break AccelRice.cpp:80
 run data/small.png
 

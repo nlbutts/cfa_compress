@@ -20,7 +20,6 @@ typedef struct {
     uint32_t            processed_samples;
     uint16_t            sumk;
     uint16_t            previous_sample;
-    uint32_t            compressed_bytes;
 } rice_bitstream_t;
 
 static void _Rice_init(rice_bitstream_t &config)
@@ -34,7 +33,6 @@ static void _Rice_init(rice_bitstream_t &config)
     config.processed_samples    = 0;
     config.sumk                 = 0;
     config.previous_sample      = 0;
-    config.compressed_bytes     = 0;
 }
 
 static void _Rice_flush(rice_bitstream_t &config,
@@ -43,7 +41,6 @@ static void _Rice_flush(rice_bitstream_t &config,
     // Flush the last few bits
     config.bits <<= (8 - config.bitcount);
     outdata.write(config.bits.range(7, 0));
-    config.compressed_bytes++;
 }
 
 /*************************************************************************
@@ -141,6 +138,7 @@ int Rice_Compress(hls::stream<uint16_t> &indata,
     {
         sx = indata.read();
         config.previous_sample = sx;
+        outdata.write(k);
     }
     else
     {
@@ -167,7 +165,6 @@ int Rice_Compress(hls::stream<uint16_t> &indata,
         #pragma HLS loop_tripcount min=0 max=3 avg=1
         outdata.write(config.bits.range(config.bitcount - 1, config.bitcount - 8));
         config.bitcount -= 8;
-        config.compressed_bytes++;
         out_bytes++;
     }
 
@@ -198,10 +195,21 @@ void Rice_Compress_accel( const uint16_t* indata,
     _Rice_init(p[3]);
     hls::stream<uint16_t> instream;
     hls::stream<uint8_t>  outstream;
-    outstream.write(k);
     // The first four bytes are the total size of the compressed data that follows
-    uint32_t out_index[4] = {4};
+    uint32_t out_index[4];
+    uint32_t offsets[4];
     uint32_t offset;
+
+    offsets[0] = 0;
+    offsets[1] = out_offset;
+    offsets[2] = out_offset << 1;
+    // This is to avoid a multiply
+    offsets[3] = offsets[1] + offsets[2];
+
+    for (ap_uint<3> i = 0; i < 4; i++)
+    {
+        out_index[i] = 4;
+    }
 
     for (uint32_t y = 0; y < height; y++)
     {
@@ -215,30 +223,33 @@ void Rice_Compress_accel( const uint16_t* indata,
             int index = ((y & 1) << 1) + (x & 1);
             instream.write(*indata++);
             int outbytes = Rice_Compress(instream, outstream, p[index], k);
-            offset = out_index[index] * out_offset;
             while (!outstream.empty())
             {
+                offset = out_index[index] + offsets[index];
                 outdata[offset] = outstream.read();
                 out_index[index]++;
             }
         }
     }
 
-    for (uint8_t i = 0; i < 4; i++)
+    for (ap_uint<3> i = 0; i < 4; i++)
     {
         _Rice_flush(p[i], outstream);
-        offset = out_index[i] * out_offset;
         while (!outstream.empty())
         {
+            offset = out_index[i] + offsets[i];
             outdata[offset] = outstream.read();
             out_index[i]++;
         }
 
-        offset = i * out_offset;
-        outdata[offset    ] = (out_index[i] >> 24) & 0xFF;
-        outdata[offset + 1] = (out_index[i] >> 16) & 0xFF;
-        outdata[offset + 2] = (out_index[i] >>  8) & 0xFF;
-        outdata[offset + 3] = (out_index[i])       & 0xFF;
+        // This was offset by 4 above for the length word.
+        out_index[i] -= 4;
+
+        offset = offsets[i];
+        outdata[offset    ] = (out_index[i]      ) & 0xFF;
+        outdata[offset + 1] = (out_index[i] >>  8) & 0xFF;
+        outdata[offset + 2] = (out_index[i] >> 16) & 0xFF;
+        outdata[offset + 3] = (out_index[i] >> 24) & 0xFF;
     }
 }
 
@@ -272,7 +283,9 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
     for (int i = 0; i < 4; i++)
     {
         uint32_t * data_size = (uint32_t*)(comp_data + (i * offset));
-        std::vector<uint8_t> comp_channel(comp_data + 4, comp_data + *data_size + 4);
+        uint8_t * src = (uint8_t*)(comp_data + (i * offset) + 4);
+        uint8_t * end = (uint8_t*)(comp_data + (i * offset) + 4 + *data_size);
+        std::vector<uint8_t> comp_channel(src, end);
         output.push_back(comp_channel);
     }
 
