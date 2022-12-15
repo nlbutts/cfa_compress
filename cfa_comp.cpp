@@ -21,49 +21,8 @@ void CfaComp::append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t
 
 int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
 {
-    int total_pixels = img.rows * img.cols;
-    std::vector<int16_t> channels[4];
-    std::vector<uint8_t> comp_data[4];
-    int channel_index[4] = {0};
-
-    for (int i = 0; i < 4; i++)
-    {
-        channels[i].resize(total_pixels / 4);
-    }
-
-    // Split the bayer image into RGGB planes
-    uint16_t prev_pixel[4];
-    for (int y = 0; y < img.rows; y++)
-    {
-        for (int x = 0; x < img.cols; x++)
-        {
-            int index = ((y & 1) << 1) + (x & 1);
-            uint16_t pixel = img.at<uint16_t>(y, x);
-            if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
-            {
-                channels[index][channel_index[index]] = pixel;
-                prev_pixel[index] = pixel;
-                channel_index[index]++;
-            }
-            else
-            {
-                channels[index][channel_index[index]] = pixel - prev_pixel[index];
-                prev_pixel[index] = pixel;
-                channel_index[index]++;
-            }
-        }
-    }
-
-    // Now compress
-    int comp_size[4];
-    for (int ch = 0; ch < 4; ch++)
-    {
-        comp_size[ch] = _rice->compress(channels[ch], comp_data[ch]);
-        // printf("size: %d  comp_size: %d\n",
-        //         (int)channels[ch].size() * 2,
-        //         comp_size[ch]);
-    }
-
+    // This will return a vector of vectors
+    auto compdata = _rice->compress(img);
     CfaCompData header;
     header.type[0] = 'C';
     header.type[1] = 'F';
@@ -74,22 +33,23 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     header.type[6] = '1';
     header.channels = 4;
     boost::crc_32_type crc;
+    int total_pixels = compdata[0].size() + compdata[1].size() + compdata[2].size() + compdata[3].size();
     crc.process_bytes(img.data, total_pixels * 2);
     header.crc = crc();
     header.width = img.cols;
     header.height = img.rows;
-    header.channel_size[0] = comp_size[0];
-    header.channel_size[1] = comp_size[1];
-    header.channel_size[2] = comp_size[2];
-    header.channel_size[3] = comp_size[3];
+    header.channel_size[0] = compdata[0].size();
+    header.channel_size[1] = compdata[1].size();
+    header.channel_size[2] = compdata[2].size();
+    header.channel_size[3] = compdata[3].size();
     auto src = (uint8_t*)&header;
     compimg.clear();
     compimg.insert(compimg.begin(), src, src + sizeof(CfaCompData));
 
-    append_comp_channel(compimg, comp_data[0]);
-    append_comp_channel(compimg, comp_data[1]);
-    append_comp_channel(compimg, comp_data[2]);
-    append_comp_channel(compimg, comp_data[3]);
+    append_comp_channel(compimg, compdata[0]);
+    append_comp_channel(compimg, compdata[1]);
+    append_comp_channel(compimg, compdata[2]);
+    append_comp_channel(compimg, compdata[3]);
 
     float cr = (float)compimg.size() / (total_pixels * 2);
     cr *= 100;

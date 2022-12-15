@@ -57,17 +57,10 @@ public:
    Rice();
    virtual ~Rice();
 
-   int compress( std::vector<int16_t> &in,
-                 std::vector<uint8_t> &out);
+    std::vector<std::vector<uint8_t> > compress( cv::Mat &img);
 
-   void decompress( std::vector<uint8_t> &in,
-                    std::vector<int16_t> &out,
-                    uint32_t uncompressedSize);
-
-
-   // int Rice_Compress( void *in, void *out, unsigned int insize, int format );
-   // void Rice_Uncompress( void *in, void *out, unsigned int insize,
-   //                    unsigned int outsize, int format );
+   cv::Mat decompress( std::vector<uint8_t> &in,
+                       uint32_t uncompressedSize);
 };
 
 

@@ -103,6 +103,7 @@
 
 #include "rice.h"
 #include "timeit.h"
+#include "opencv2/opencv.hpp"
 
 
 /*************************************************************************
@@ -593,23 +594,63 @@ Rice::~Rice()
     // Do nothing
 }
 
-int Rice::compress( std::vector<int16_t> &in,
-                    std::vector<uint8_t> &out)
+std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
 {
     Timeit t("SW Rice Compress");
+
+    int total_pixels = img.rows * img.cols;
+    std::vector<int16_t> channels[4];
+    std::vector<uint8_t> comp_data[4];
+    int channel_index[4] = {0};
+
+    for (int i = 0; i < 4; i++)
+    {
+        channels[i].resize(total_pixels / 4);
+    }
+
+    // Split the bayer image into RGGB planes
+    uint16_t prev_pixel[4];
+    for (int y = 0; y < img.rows; y++)
+    {
+        for (int x = 0; x < img.cols; x++)
+        {
+            int index = ((y & 1) << 1) + (x & 1);
+            uint16_t pixel = img.at<uint16_t>(y, x);
+            if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
+            {
+                channels[index][channel_index[index]] = pixel;
+                prev_pixel[index] = pixel;
+                channel_index[index]++;
+            }
+            else
+            {
+                channels[index][channel_index[index]] = pixel - prev_pixel[index];
+                prev_pixel[index] = pixel;
+                channel_index[index]++;
+            }
+        }
+    }
+
+    // Now compress
+    std::vector<std::vector<uint8_t> > outdata;
+    int comp_size[4];
+    for (int ch = 0; ch < 4; ch++)
+    {
+        comp_size[ch] = Rice_Compress((void*)channels[ch].data(), (void*)comp_data[ch].data(), channels[ch].size(), RICE_FMT_INT16);
+        outdata.push_back(comp_data[ch]);
+        // printf("size: %d  comp_size: %d\n",
+        //         (int)channels[ch].size() * 2,
+        //         comp_size[ch]);
+    }
+
     // Make out as large as the input data
-    out.resize(in.size() * 2);
-    int outsize = Rice_Compress(in.data(), out.data(), in.size() * 2, RICE_FMT_INT16);
-    out.resize(outsize);
     t.print();
-    return outsize;
+    return outdata;
 }
 
-void Rice::decompress( std::vector<uint8_t> &in,
-                       std::vector<int16_t> &out,
-                       uint32_t uncompressedSize)
+cv::Mat Rice::decompress( std::vector<uint8_t> &in,
+                         uint32_t uncompressedSize)
 {
-    out.resize(uncompressedSize);
     Rice_Uncompress(in.data(),
                     out.data(),
                     in.size(),

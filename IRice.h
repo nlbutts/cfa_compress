@@ -18,24 +18,21 @@ public:
      * @brief This is the rice compression method. It takes a signed int16
      * input data and generates the compressed output.
      *
-     * @param in a reference to the int16 input data
-     * @param out a reference to the uint8 output data
-     * @return int the size of the output data
+     * @param img a reference to an OpenCV image
+     * @return vector of vectors of uint8_t containing channel data
      */
-    virtual int compress( std::vector<int16_t> &in,
-                          std::vector<uint8_t> &out) = 0;
+    virtual std::vector<std::vector<uint8_t> > compress( cv::Mat &img) = 0;
 
     /**
      * @brief This is the rice decompression method. It takes the compressed
      * bit stream and produces the uncomressed data.
      *
      * @param in a reference to the compressed bit stream
-     * @param out a reference to the int16 output data
      * @param uncompressedSize The size of the uncompressed data
+     * @return cv::Mat the reconstructed image
      */
-    virtual void decompress( std::vector<uint8_t> &in,
-                             std::vector<int16_t> &out,
-                             uint32_t uncompressedSize) = 0;
+    virtual cv::Mat decompress( std::vector<uint8_t> &in,
+                                uint32_t uncompressedSize) = 0;
 
 
 protected:
