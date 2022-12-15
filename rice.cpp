@@ -103,6 +103,7 @@
 
 #include "rice.h"
 #include "timeit.h"
+#include "opencv2/opencv.hpp"
 
 /*************************************************************************
 * Constants used for Rice coding

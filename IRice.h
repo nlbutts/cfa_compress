@@ -3,8 +3,11 @@
 
 #include <vector>
 #include <stdint.h>
-#include "opencv2/opencv.hpp"
+//#include "opencv2/opencv.hpp"
 
+namespace cv {
+    class Mat;
+}
 
 /**
  * @brief This is the abstract base class for the Rice implementation.
