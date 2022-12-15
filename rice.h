@@ -34,6 +34,7 @@
 
 #include "IRice.h"
 
+
 /*************************************************************************
 * Supported binary formats
 *************************************************************************/
@@ -59,8 +60,14 @@ public:
 
     std::vector<std::vector<uint8_t> > compress( cv::Mat &img);
 
-   cv::Mat decompress( std::vector<uint8_t> &in,
-                       uint32_t uncompressedSize);
+   void decompress( std::vector<uint8_t> &in,
+                    std::vector<int16_t> &out,
+                    uint32_t uncompressedSize);
+
+
+   // int Rice_Compress( void *in, void *out, unsigned int insize, int format );
+   // void Rice_Uncompress( void *in, void *out, unsigned int insize,
+   //                    unsigned int outsize, int format );
 };
 
 

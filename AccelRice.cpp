@@ -2,6 +2,7 @@
 #include "AccelRice.h"
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
+#include <memory.h>
 
 #define RICE_HISTORY    16
 #define RICE_WORD       16
@@ -12,11 +13,23 @@ typedef ap_axiu<BITS, 1, 1, 1> pixel;
 typedef ap_axiu<8, 1, 1, 1> compdata;
 
 typedef struct {
-    uint8_t*        outdata;
-    unsigned int    total_bytes;
-    ap_uint<64>     bits;
-    ap_uint<8>      bitcount;
+    ap_uint<4>          hist[ RICE_HISTORY ];
+    ap_uint<5>          hist_index;
+    ap_uint<64>         bits;
+    ap_uint<8>          bitcount;
 } rice_bitstream_t;
+
+static void _Rice_init(rice_bitstream_t * config)
+{
+    init: for (i = 0; i < RICE_HISTORY; i++)
+    {
+        config->hist[i] = 0;
+    }
+
+    config->hist_index = 0;
+    config->bits.range(7, 0) = 7;
+    config->bitcount += 8;
+}
 
 /*************************************************************************
 * _Rice_NumBits() - Determine number of information bits in a word.
@@ -105,15 +118,14 @@ static void _Rice_EncodeWord( ap_uint<16> x,
     }
 }
 
-
+#define MAX_BUF 64
 int Rice_Compress(const int16_t* indata,
                   uint8_t* outdata,
                   unsigned int insize,
                   uint16_t k )
 {
-    unsigned int        i, incount;
+    unsigned int        i, incount, j = 0, y = 0;
     ap_uint<4>          hist[ RICE_HISTORY ] = {0};
-    ap_uint<5>          j;
     int16_t             sx;
     uint16_t            x;
     uint16_t            sumk = 0;
@@ -121,8 +133,11 @@ int Rice_Compress(const int16_t* indata,
     ap_uint<64>         bits = 0;
     ap_uint<8>          bitcount = 0;
     ap_uint<5>          hist_index;
+    uint8_t             tmp_out[MAX_BUF + 16];
+    ap_uint<11>         tmp_index = 0;
 
-    outdata[0] = k;
+    //outdata[0] = k;
+    tmp_out[tmp_index++] = k;
     total_bytes++;
 
     init: for (i = 0; i < RICE_HISTORY; i++)
@@ -159,9 +174,18 @@ int Rice_Compress(const int16_t* indata,
         output: while (bitcount > 8)
         {
             #pragma HLS loop_tripcount min=0 max=3 avg=1
-            outdata[total_bytes] = bits.range(bitcount - 1, bitcount - 8);
+            //outdata[total_bytes] = bits.range(bitcount - 1, bitcount - 8);
+            tmp_out[tmp_index++] = bits.range(bitcount - 1, bitcount - 8);
             bitcount -= 8;
             total_bytes++;
+        }
+
+        memout: if (tmp_index >= MAX_BUF)
+        {
+            memcpy(outdata + j, tmp_out, MAX_BUF);
+            j += MAX_BUF;
+            memcpy(tmp_out, tmp_out + MAX_BUF, tmp_index - MAX_BUF);
+            tmp_index -= MAX_BUF;
         }
     }
 
@@ -176,40 +200,52 @@ int Rice_Compress(const int16_t* indata,
 
     // Flush the last few bits
     bits <<= (8 - bitcount);
-    outdata[total_bytes] = bits.range(7, 0);
+    //outdata[total_bytes] = bits.range(7, 0);
+    tmp_out[tmp_index++] = bits.range(7, 0);
+    memcpy(outdata + j, tmp_out, tmp_index);
 
     return total_bytes + 1;
 }
 
-int Rice_Compress_accel( const int16_t* indata,
-                         uint8_t* outdata,
+int Rice_Compress_accel( const ap_uint<128>* indata,
+                         ap_uint<128>* outdata,
                          unsigned int insize,
                          int k )
 {
+//#pragma HLS AGGREGATE compact=byte variable=outdata
+//#pragma HLS AGGREGATE compact=byte variable=indata
 #pragma HLS INTERFACE mode=s_axilite port=return
 #pragma HLS INTERFACE mode=s_axilite port=insize
 #pragma HLS INTERFACE mode=s_axilite port=k
-//#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=128 bundle=gem1 max_widen_bitwidth=128
-#pragma HLS INTERFACE m_axi port=outdata depth=128 bundle=gem1 max_widen_bitwidth=128
+#pragma HLS DATAFLOW
+#pragma HLS INTERFACE m_axi port=indata depth=128 bundle=gem0 max_widen_bitwidth=128 num_read_outstanding=16
+#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=128 max_widen_bitwidth=128 max_write_burst_length=64 num_write_outstanding=16 port=outdata
 
-// num_read_outstanding=<int> num_write_outstanding=<int> \
-// max_read_burst_length=<int> max_write_burst_length=<int>
-    return Rice_Compress(indata, outdata, insize, k);
+    //return Rice_Compress(indata, outdata, insize, k);
+	for (int i = 0; i < insize/2; i++)
+	{
+		outdata[i] = indata[i] + 1;
+	}
+	return insize;
 }
 
-int AccelRice::compress( std::vector<int16_t> &in,
-                         std::vector<uint8_t> &out)
+std::vector<std::vector<uint8_t> > AccelRice::compress( cv::Mat &img)
 {
-    uint8_t * dst = new uint8_t[in.size() * 2];
-    int size = Rice_Compress_accel(in.data(), dst, in.size() * 2, 7);
-    out.resize(size);
-    for (int i = 0; i < size; i++)
-    {
-        out[i] = dst[i];
-    }
-    delete [] dst;
-    return size;
+    // ap_uint<128> * dst = (ap_uint<128>*)new uint8_t[in.size() * (128/4)];
+    // ap_uint<128> * src = (ap_uint<128>*)new uint8_t[in.size() * (128/4)];
+    // for (int i = 0; i < in.size(); i++)
+    // {
+    // 	src[i] = in[i];
+    // }
+    // int size = Rice_Compress_accel(src, dst, in.size() * 2, 7);
+    // out.resize(size);
+    // for (int i = 0; i < size; i++)
+    // {
+    //     out[i] = dst[i];
+    // }
+    // delete [] dst;
+    std::vector<std::vector<uint8_t> > compdata;
+    return compdata;
 }
 
 void AccelRice::decompress( std::vector<uint8_t> &in,

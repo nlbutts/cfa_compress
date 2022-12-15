@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <stdint.h>
+#include "opencv2/opencv.hpp"
+
 
 /**
  * @brief This is the abstract base class for the Rice implementation.
@@ -28,11 +30,12 @@ public:
      * bit stream and produces the uncomressed data.
      *
      * @param in a reference to the compressed bit stream
+     * @param out a reference to the int16 output data
      * @param uncompressedSize The size of the uncompressed data
-     * @return cv::Mat the reconstructed image
      */
-    virtual cv::Mat decompress( std::vector<uint8_t> &in,
-                                uint32_t uncompressedSize) = 0;
+    virtual void decompress( std::vector<uint8_t> &in,
+                             std::vector<int16_t> &out,
+                             uint32_t uncompressedSize) = 0;
 
 
 protected:

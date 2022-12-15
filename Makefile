@@ -293,4 +293,8 @@ opencv:
 	make -C ocvbuild -j24
 	make -C ocvbuild install
 
+.PHONY: patch
+patch:
+	@echo "Applying kernel patch"
+
 # MK_INC_END hls_test_rules.mk

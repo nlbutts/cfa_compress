@@ -33,7 +33,7 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     header.type[6] = '1';
     header.channels = 4;
     boost::crc_32_type crc;
-    int total_pixels = compdata[0].size() + compdata[1].size() + compdata[2].size() + compdata[3].size();
+    int total_pixels = img.rows * img.cols;
     crc.process_bytes(img.data, total_pixels * 2);
     header.crc = crc();
     header.width = img.cols;

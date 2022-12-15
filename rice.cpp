@@ -103,8 +103,6 @@
 
 #include "rice.h"
 #include "timeit.h"
-#include "opencv2/opencv.hpp"
-
 
 /*************************************************************************
 * Constants used for Rice coding
@@ -636,7 +634,12 @@ std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
     int comp_size[4];
     for (int ch = 0; ch < 4; ch++)
     {
-        comp_size[ch] = Rice_Compress((void*)channels[ch].data(), (void*)comp_data[ch].data(), channels[ch].size(), RICE_FMT_INT16);
+        comp_data[ch].resize(total_pixels);
+        comp_size[ch] = Rice_Compress((void*)channels[ch].data(),
+                                      (void*)comp_data[ch].data(),
+                                      channels[ch].size() * 2,
+                                      RICE_FMT_INT16);
+        comp_data[ch].resize(comp_size[ch]);
         outdata.push_back(comp_data[ch]);
         // printf("size: %d  comp_size: %d\n",
         //         (int)channels[ch].size() * 2,
@@ -648,9 +651,11 @@ std::vector<std::vector<uint8_t> > Rice::compress(cv::Mat &img)
     return outdata;
 }
 
-cv::Mat Rice::decompress( std::vector<uint8_t> &in,
-                         uint32_t uncompressedSize)
+void Rice::decompress( std::vector<uint8_t> &in,
+                       std::vector<int16_t> &out,
+                       uint32_t uncompressedSize)
 {
+    out.resize(uncompressedSize);
     Rice_Uncompress(in.data(),
                     out.data(),
                     in.size(),
