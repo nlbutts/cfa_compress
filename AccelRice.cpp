@@ -170,7 +170,7 @@ int Rice_Compress(hls::stream<uint16_t> &indata,
     return out_bytes;
 }
 
-void Rice_Compress_accel(const ap_uint<128>* indata,
+void Rice_Compress_accel(const uint16_t* indata,
                          uint8_t* outdata,
                          uint32_t width,
                          uint32_t height,
@@ -182,10 +182,14 @@ void Rice_Compress_accel(const ap_uint<128>* indata,
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
 //#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=512 bundle=gem0 max_widen_bitwidth=128 num_read_outstanding=16
-#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=512 max_widen_bitwidth=128 max_write_burst_length=64 num_write_outstanding=16 port=outdata
+#pragma HLS INTERFACE m_axi port=indata depth=512 bundle=gem0 num_read_outstanding=16
+#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=512 max_write_burst_length=64 num_write_outstanding=16 port=outdata
 
     rice_bitstream_t config[4];
+    _Rice_init(config[0]);
+    _Rice_init(config[1]);
+    _Rice_init(config[2]);
+    _Rice_init(config[3]);
     hls::stream<uint16_t> instream;
 #pragma HLS stream variable=instream type=fifo depth=64
     hls::stream<uint8_t>  outstream;
@@ -210,25 +214,21 @@ void Rice_Compress_accel(const ap_uint<128>* indata,
 
     rows: for (uint32_t y = 0; y < height; y++)
     {
-        cols: for (uint32_t x = 0; x < width/8; x++)
+        cols: for (uint32_t x = 0; x < width; x++)
         {
-            pixel = *indata++;
-            pixels: for (uint32_t px = 0; px < 8; px++)
+            /*
+            This code gives us an index from 0-3.
+            We will get a value of 0 and 1 for even and od pixels on even lines
+            We will get a value of 2 and 3 for even and odd pixels on odd lines
+            */
+            int index = ((y & 1) << 1) + (x & 1);
+            instream.write(*indata++);
+            int outbytes = Rice_Compress(instream, outstream, config[index], k);
+            save: while (!outstream.empty())
             {
-                /*
-                This code gives us an index from 0-3.
-                We will get a value of 0 and 1 for even and od pixels on even lines
-                We will get a value of 2 and 3 for even and odd pixels on odd lines
-                */
-                int index = ((y & 1) << 1) + (px & 1);
-                instream.write(pixel.range((px * 16) + 15, px));
-                int outbytes = Rice_Compress(instream, outstream, config[index], k);
-                while (!outstream.empty())
-                {
-                    offset = out_index[index] + offsets[index];
-                    outdata[offset] = outstream.read();
-                    out_index[index]++;
-                }
+                offset = out_index[index] + offsets[index];
+                outdata[offset] = outstream.read();
+                out_index[index]++;
             }
         }
     }
@@ -273,7 +273,7 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
     uint32_t offset = (((total_pixels / 4) / 64) + 1) * 64;
     uint8_t * comp_data = new uint8_t[total_pixels * 4];
     uint32_t comp_size[4];
-    Rice_Compress_accel((ap_uint<128> *)imgdata,
+    Rice_Compress_accel(imgdata,
                         comp_data,
                         width,
                         height,
