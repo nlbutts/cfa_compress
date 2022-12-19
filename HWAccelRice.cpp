@@ -1,26 +1,13 @@
 #include <stdlib.h>
 #include "HWAccelRice.h"
 #include "timeit.h"
+#include <xrt/xrt_device.h>
+#include <xrt/xrt_kernel.h>
 
 #define PAGE_ALIGN(addr) (((addr / 4096) + 1) * 4096)
 
 HWAccelRice::HWAccelRice()
 {
-    int err = XRice_compress_accel_Initialize(&_inst, "rice-accel-uio");
-    if (err != XST_SUCCESS )
-    {
-        printf("Failed to initialize rice-accel-uio with error: %d\n", err);
-        assert(true);
-        return;
-    }
-
-    _fd = open(_inst.devnode, O_RDONLY);
-    if (_fd <= 0)
-    {
-        printf("Failed to open uio dev node\n");
-        assert(true);
-        return;
-    }
 }
 
 HWAccelRice::~HWAccelRice()
@@ -28,37 +15,45 @@ HWAccelRice::~HWAccelRice()
 
 }
 
-int HWAccelRice::compress( std::vector<int16_t> &in,
-                           std::vector<uint8_t> &out)
+std::vector<std::vector<uint8_t> > HWAccelRice::compress(uint16_t * imgdata,
+                                                         uint32_t width,
+                                                         uint32_t height)
 {
-    memcpy((void*)_inst.dmabuf_virt_addr, in.data(), in.size() * 2);
+    unsigned int dev_index = 0;
+    auto device = xrt::device(dev_index);
+    auto uuid = device.load_xclbin("krnl_AccelRice.xclbin");
+    std::cout << "device name:     " << device.get_info<xrt::info::device::name>() << "\n";
+    std::cout << "device bdf:      " << device.get_info<xrt::info::device::bdf>() << "\n";
 
-    Timeit t2("HW Rice Compress");
+    auto krnl = xrt::kernel(device, uuid, "Rice_Compress_accel");
 
-    int offset = PAGE_ALIGN(in.size() * 2);
-    XRice_compress_accel_Set_indata(&_inst, _inst.dmabuf_phy_addr);
-    XRice_compress_accel_Set_outdata(&_inst, _inst.dmabuf_phy_addr + offset);
-    XRice_compress_accel_Set_k(&_inst, 7);
-    XRice_compress_accel_Set_insize(&_inst, in.size() * 2);
-    XRice_compress_accel_InterruptGlobalEnable(&_inst);
-    XRice_compress_accel_InterruptEnable(&_inst, 1);
+    auto arg0 = krnl.group_id(0);
+    auto arg1 = krnl.group_id(1);
 
-    XRice_compress_accel_Start(&_inst);
+    auto input_buffer = xrt::bo(device, width * height * 2, arg0);
+    auto output_buffer = xrt::bo(device, width * height * 2, arg1);
 
-    u32 count;
-    (void)read(_fd, &count, 4);
+    auto input_buffer_mapped = input_buffer.map<void*>();
+    memcpy(input_buffer_mapped, imgdata, width * height * 2);
 
-    t2.print();
+    int offset = width * height / 2;
+    auto run = krnl(input_buffer, output_buffer, width, height, offset, 7);
+    run.wait();
 
-    XRice_compress_accel_Set_k(&_inst, 7);
-    u32 compsize = XRice_compress_accel_Get_return(&_inst);
-    printf("Compressed size: %d bytes count: %d\n", compsize, count);
+    auto output_buffer_mapped = output_buffer.map<uint8_t*>();
 
-    uint8_t * compdata = (uint8_t*)_inst.dmabuf_virt_addr + offset;
-    out.clear();
-    std::copy(&compdata[0], &compdata[compsize], std::back_inserter(out));
+    std::vector<std::vector<uint8_t> > output;
+    for (int ch = 0; ch < 4; ch++)
+    {
+        uint8_t * ptr = output_buffer_mapped + (ch * offset);
+        uint32_t * size = (uint32_t*)ptr;
+        uint8_t * src = &ptr[4];
+        uint8_t * end = &ptr[4] + *size;
+        std::vector<uint8_t> ch_data(src, end);
+        output.push_back(ch_data);
+    }
 
-    return compsize;
+    return output;
 }
 
 void HWAccelRice::decompress( std::vector<uint8_t> &in,

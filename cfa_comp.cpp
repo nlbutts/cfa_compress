@@ -173,7 +173,11 @@ int CfaComp::load_file(std::string filename, std::vector<uint8_t> &data)
         long size = ftell(f);
         data.resize(size);
         fseek(f, 0, SEEK_CUR);
-        fread(data.data(), 1, size, f);
+        auto read_size = fread(data.data(), 1, size, f);
+        if (size != read_size)
+        {
+            printf("Error reading file\n");
+        }
         fclose(f);
     }
     else

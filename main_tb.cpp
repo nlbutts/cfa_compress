@@ -86,6 +86,7 @@ int main(int argc, char ** argv)
     {
         Timeit comptime("HW Accel Total Compression time");
         cfaComp3.compress(inimg, comp_data);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");

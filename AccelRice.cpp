@@ -182,8 +182,8 @@ void Rice_Compress_accel(const uint16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
 //#pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata depth=512 bundle=gem0 num_read_outstanding=16
-#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=512 max_write_burst_length=64 num_write_outstanding=16 port=outdata
+#pragma HLS INTERFACE m_axi port=indata bundle=gem0 depth=512
+#pragma HLS INTERFACE mode=m_axi bundle=gem1 depth=512
 
     rice_bitstream_t config[4];
     _Rice_init(config[0]);
@@ -191,9 +191,9 @@ void Rice_Compress_accel(const uint16_t* indata,
     _Rice_init(config[2]);
     _Rice_init(config[3]);
     hls::stream<uint16_t> instream;
-#pragma HLS stream variable=instream type=fifo depth=64
+#pragma HLS stream variable=instream type=fifo depth=8
     hls::stream<uint8_t>  outstream;
-#pragma HLS stream variable=outstream type=fifo depth=64
+#pragma HLS stream variable=outstream type=fifo depth=8
     // The first four bytes are the total size of the compressed data that follows
     uint32_t out_index[4];
     uint32_t offsets[4];
@@ -270,8 +270,8 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
  */
     uint32_t total_pixels = width * height;
     // Align the offset for the channels
-    uint32_t offset = (((total_pixels / 4) / 64) + 1) * 64;
-    uint8_t * comp_data = new uint8_t[total_pixels * 4];
+    uint32_t offset = total_pixels / 2;
+    uint8_t * comp_data = new uint8_t[total_pixels * 8];
     uint32_t comp_size[4];
     Rice_Compress_accel(imgdata,
                         comp_data,
@@ -282,11 +282,12 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
 
     // Put into vectors to return
     std::vector<std::vector<uint8_t> > output;
-    for (int i = 0; i < 4; i++)
+    for (int ch = 0; ch < 4; ch++)
     {
-        uint32_t * data_size = (uint32_t*)(comp_data + (i * offset));
-        uint8_t * src = (uint8_t*)(comp_data + (i * offset) + 4);
-        uint8_t * end = (uint8_t*)(comp_data + (i * offset) + 4 + *data_size);
+        uint8_t * ptr = comp_data + (ch * offset);
+        uint32_t * size = (uint32_t*)ptr;
+        uint8_t * src = &ptr[4];
+        uint8_t * end = &ptr[4] + *size;
         std::vector<uint8_t> comp_channel(src, end);
         output.push_back(comp_channel);
     }

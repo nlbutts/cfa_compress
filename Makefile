@@ -186,6 +186,26 @@ endif # XPART
 
 # MK_INC_BEGIN hls_test_rules.mk
 
+DEVICE = $(XILINX_VITIS)/base_platforms/xilinx_zcu104_base_202210_1/xilinx_zcu104_base_202210_1.xpfm
+TARGET = hw
+PLATFORM_NAME = zcu104
+TEMP_DIR := _x_temp.$(TARGET).$(PLATFORM_NAME)
+TEMP_REPORT_DIR := $(CUR_DIR)/reports/_x.$(TARGET).$(PLATFORM_NAME)
+BUILD_DIR := build_dir.$(TARGET).$(PLATFORM_NAME)
+BUILD_REPORT_DIR := $(CUR_DIR)/reports/_build.$(TARGET).$(PLATFORM_NAME)
+#CXXFLAGS += -I$(CUR_DIR)/src/ -fmessage-length=0 --sysroot=$(SYSROOT)  -I$(SYSROOT)/usr/include/xrt -I$(XILINX_HLS)/include -std=c++14 -O3 -Wall -Wno-unknown-pragmas -Wno-unused-label
+LDFLAGS += -pthread -L$(SYSROOT)/usr/lib -L$(XILINX_VITIS_AIETOOLS)/lib/aarch64.o -Wl,--as-needed -lxilinxopencl -lxrt_coreutil
+VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps --config connectivity.cfg --profile.data all --profile.trace_memory all
+VPP_LDFLAGS += --optimize 2 -R 2
+VPP = v++
+K_IMAGE = ~/projects/plinux/images/linux/Image
+ROOTFS = ~/projects/plinux/images/linux/rootfs.ext4
+EMCONFIG := $(BUILD_DIR)/emconfig.json
+EXE_FILE = ref
+
+BINARY_CONTAINERS += $(BUILD_DIR)/krnl_AccelRice_pkg.xclbin
+BINARY_CONTAINERS_PKG += $(BUILD_DIR)/krnl_AccelRice.xclbin
+
 
 .PHONY: run setup runhls clean cleanall check
 
@@ -253,20 +273,25 @@ CPPSRC = main_tb.cpp \
 		 timeit.cpp \
 		 HWAccelRice.cpp \
 
-CSRC = drivers/xrice_compress_accel.c \
+#CSRC = drivers/xrice_compress_accel.c \
 	   drivers/xrice_compress_accel_linux.c \
 
 OBJDIR = obj
 CPPOBJS := $(CPPSRC:%.cpp=$(OBJDIR)/%.o)
 COBJS += $(CSRC:%.c=$(OBJDIR)/%.o)
-CFLAGS = -std=c++14 -O3 -I/usr/local/include/opencv4 -g -DHW_IMPLEMENTATION
-
+CFLAGS = -std=c++17 -O3 -g -DHW_IMPLEMENTATION \
+		-I$(SDKTARGETSYSROOT)/usr/include/opencv4 \
+		-I$(SDKTARGETSYSROOT)/usr/include/xrt
 
 clean:
 	rm -rf settings.tcl *_hls.log cfa_comp.prj
 	rm -rf $(OBJDIR)
 	rm -f ref*
 	rm -f comp.cfa
+	rm -rf $(BUILD_DIR)
+	rm -rf $(TEMP_DIR)
+	rm -f v++*
+	rm -f vitis_analyzer*
 
 # Used by Jenkins test
 cleanall: clean
@@ -283,7 +308,7 @@ $(COBJS): $(OBJDIR)/drivers/%.o: drivers/%.c
 ref: $(COBJS) $(CPPOBJS)
 	@echo $(COBJS)
 	@echo $(CPPOBJS)
-	$(CXX) $(CFLAGS) -o $@ $(COBJS) $(CPPOBJS)  -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_imgproc
+	$(CXX) $(CFLAGS) -o $@ $(COBJS) $(CPPOBJS)  -L$(SDKTARGETSYSROOT)/usr/lib -lopencv_core -lopencv_imgcodecs -lopencv_imgproc -lxrt_coreutil
 
 .PHONY: opencv
 opencv:
@@ -296,5 +321,84 @@ opencv:
 .PHONY: patch
 patch:
 	@echo "Applying kernel patch"
+
+.PHONY: vitis
+vitis: $(BINARY_CONTAINERS)
+
+$(TEMP_DIR)/AccelRice.xo: AccelRice.cpp
+	@echo "Compiling Kernel: AccelRice"
+	mkdir -p $(TEMP_DIR)
+	$(VPP) -c $(VPP_FLAGS) -k Rice_Compress_accel -I'$(<D)' --temp_dir $(TEMP_DIR) --report_dir $(TEMP_REPORT_DIR) -o $@ $^
+
+BINARY_CONTAINER_krnl_IP_OBJS += $(TEMP_DIR)/AccelRice.xo
+
+BINARY_CONTAINERS_DEPS += $(BINARY_CONTAINER_krnl_IP_OBJS)
+$(BINARY_CONTAINERS): $(BINARY_CONTAINERS_DEPS)
+	mkdir -p $(BUILD_DIR)
+	$(VPP) -l $(VPP_FLAGS) --temp_dir $(TEMP_DIR) --report_dir $(BUILD_REPORT_DIR)/krnl_AccelRice $(VPP_LDFLAGS) -o $@ $^
+
+$(EMCONFIG):
+	emconfigutil --platform $(DEVICE) --od $(BUILD_DIR)
+############################## Preparing sdcard folder ##############################
+RUN_SCRIPT := $(BUILD_DIR)/run_script.sh
+$(RUN_SCRIPT):
+	rm -rf $(RUN_SCRIPT)
+	@echo 'export LD_LIBRARY_PATH=/mnt:/tmp:$(LIBRARY_PATH)' >> $(RUN_SCRIPT)
+ifneq ($(filter sw_emu hw_emu, $(TARGET)),)
+	@echo 'export XCL_EMULATION_MODE=$(TARGET)' >> $(RUN_SCRIPT)
+endif
+	@echo 'export XILINX_VITIS=/mnt' >> $(RUN_SCRIPT)
+	@echo 'export XILINX_XRT=/usr' >> $(RUN_SCRIPT)
+	@echo 'if [ -f platform_desc.txt  ]; then' >> $(RUN_SCRIPT)
+	@echo '        cp platform_desc.txt /etc/xocl.txt' >> $(RUN_SCRIPT)
+	@echo 'fi' >> $(RUN_SCRIPT)
+	@echo './$(EXE_NAME) $(PKG_HOST_ARGS)' >> $(RUN_SCRIPT)
+	@echo 'return_code=$$?' >> $(RUN_SCRIPT)
+	@echo 'if [ $$return_code -ne 0 ]; then' >> $(RUN_SCRIPT)
+	@echo '        echo "ERROR: Embedded host run failed, RC=$$return_code"' >> $(RUN_SCRIPT)
+	@echo 'else' >> $(RUN_SCRIPT)
+	@echo '        echo "INFO: TEST PASSED, RC=0"' >> $(RUN_SCRIPT)
+	@echo 'fi' >> $(RUN_SCRIPT)
+	@echo 'echo "INFO: Embedded host run completed."' >> $(RUN_SCRIPT)
+	@echo 'exit $$return_code' >> $(RUN_SCRIPT)
+DATA_FILE := data/test.png
+DATA_DIR :=
+SD_FILES += $(RUN_SCRIPT)
+SD_FILES += $(EXE_FILE)
+SD_FILES += $(EMCONFIG)
+SD_FILES += system.dtb
+SD_FILES += boot.scr
+SD_FILES += xrt.ini
+SD_FILES += $(DATA_FILE)# where define DATAFILE in json
+SD_FILES_WITH_PREFIX = $(foreach sd_file,$(SD_FILES), $(if $(filter $(sd_file),$(wildcard $(sd_file))), --package.sd_file $(sd_file)))
+SD_DIRS_WITH_PREFIX = $(foreach sd_dir,$(DATA_DIR),--package.sd_dir $(sd_dir))
+PACKAGE_FILES := $(BINARY_CONTAINERS)
+PACKAGE_FILES += $(AIE_CONTAINER)
+SD_CARD := $(CUR_DIR)/package_$(TARGET)
+dfx_hw := off
+
+.PHONY: emconfig
+emconfig: $(EMCONFIG)
+
+$(SD_CARD): $(EXE_FILE) $(BINARY_CONTAINERS) $(RUN_SCRIPT) $(EMCONFIG)
+	@echo "Generating sd_card folder...."
+	mkdir -p $(SD_CARD)
+	chmod a+rx $(BUILD_DIR)/run_script.sh
+ifeq ($(findstring _dfx_, $(PLATFORM_NAME)),_dfx_)
+ifeq ($(TARGET),hw)
+	$(VPP) -t $(TARGET) --platform $(DEVICE) -p $(PACKAGE_FILES) $(VPP_PACKAGE) -o $(BINARY_CONTAINERS_PKG)
+	$(VPP) -t $(TARGET) --platform $(DEVICE) -p --package.out_dir  $(SD_CARD) --package.rootfs $(ROOTFS) --package.kernel_image $(K_IMAGE)  $(SD_FILES_WITH_PREFIX) $(SD_DIRS_WITH_PREFIX) --package.sd_file $(BINARY_CONTAINERS_PKG)
+	@echo "### ***** sd_card generation done! ***** ###"
+dfx_hw := on
+endif
+endif
+ifeq ($(dfx_hw), off)
+	$(VPP) -t $(TARGET) --platform $(DEVICE) -o $(BINARY_CONTAINERS_PKG) -p $(PACKAGE_FILES) $(VPP_PACKAGE) --package.out_dir  $(SD_CARD) --package.rootfs $(ROOTFS) --package.kernel_image $(K_IMAGE)  $(SD_FILES_WITH_PREFIX) $(SD_DIRS_WITH_PREFIX)
+	@echo "### ***** sd_card generation done! ***** ###"
+endif
+
+.PHONY: sd_card
+sd_card: $(SD_CARD)
+
 
 # MK_INC_END hls_test_rules.mk
