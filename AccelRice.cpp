@@ -254,17 +254,18 @@ void save_data(hls::stream<uint8_t> outstream[4], uint8_t * outdata, uint32_t wi
 {
     for (uint8_t ch = 0; ch < 4; ch++)
     {
+        uint32_t size = 0;
         uint32_t offset = out_offset[ch] + 4;
         save: while (!outstream[ch].empty())
         {
             outdata[offset++] = outstream[ch].read();
+            size++;
         }
 
-        offset -= 4;
-        outdata[out_offset[ch]    ] = (offset      ) & 0xFF;
-        outdata[out_offset[ch] + 1] = (offset >>  8) & 0xFF;
-        outdata[out_offset[ch] + 2] = (offset >> 16) & 0xFF;
-        outdata[out_offset[ch] + 3] = (offset >> 24) & 0xFF;
+        outdata[out_offset[ch]    ] = (size      ) & 0xFF;
+        outdata[out_offset[ch] + 1] = (size >>  8) & 0xFF;
+        outdata[out_offset[ch] + 2] = (size >> 16) & 0xFF;
+        outdata[out_offset[ch] + 3] = (size >> 24) & 0xFF;
     }
 }
 
