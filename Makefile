@@ -195,7 +195,7 @@ BUILD_DIR := build_dir.$(TARGET).$(PLATFORM_NAME)
 BUILD_REPORT_DIR := $(CUR_DIR)/reports/_build.$(TARGET).$(PLATFORM_NAME)
 #CXXFLAGS += -I$(CUR_DIR)/src/ -fmessage-length=0 --sysroot=$(SYSROOT)  -I$(SYSROOT)/usr/include/xrt -I$(XILINX_HLS)/include -std=c++14 -O3 -Wall -Wno-unknown-pragmas -Wno-unused-label
 LDFLAGS += -pthread -L$(SYSROOT)/usr/lib -L$(XILINX_VITIS_AIETOOLS)/lib/aarch64.o -Wl,--as-needed -lxilinxopencl -lxrt_coreutil
-VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps --config connectivity.cfg --profile.data all --profile.trace_memory all
+VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps --config connectivity.cfg --profile.data all:all:all --profile.trace_memory HP0
 VPP_LDFLAGS += --optimize 2 -R 2
 VPP = v++
 K_IMAGE = ~/projects/plinux/images/linux/Image
@@ -380,7 +380,7 @@ dfx_hw := off
 .PHONY: emconfig
 emconfig: $(EMCONFIG)
 
-$(SD_CARD): $(EXE_FILE) $(BINARY_CONTAINERS) $(RUN_SCRIPT) $(EMCONFIG)
+$(SD_CARD): $(BINARY_CONTAINERS) $(RUN_SCRIPT) $(EMCONFIG)
 	@echo "Generating sd_card folder...."
 	mkdir -p $(SD_CARD)
 	chmod a+rx $(BUILD_DIR)/run_script.sh
