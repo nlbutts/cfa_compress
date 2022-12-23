@@ -24,7 +24,7 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     uint32_t total_pixels = img.rows * img.cols;
     uint8_t * comp_data = new uint8_t[total_pixels * 4];
     // This will return a vector of vectors
-    uint32_t total_size = _rice->compress((uint16_t*)img.data, comp_data, img.rows, img.cols);
+    uint32_t total_size = _rice->compress((uint16_t*)img.data, comp_data, img.cols, img.rows);
     CfaCompData header;
     header.type[0] = 'C';
     header.type[1] = 'F';
@@ -106,15 +106,7 @@ int CfaComp::decompress(std::vector<uint8_t> &compimg, cv::Mat &outimg)
         {
             std::vector<uint8_t> temp(src, src + header->channel_size[i]);
             _rice->decompress(temp, decomp_data[i], uncompressed_size);
-            for (int j = 0; j < 16; j++)
-            {
-                printf("ch: %d %d\n", i, (int)decomp_data[i][j]);
-            }
             diff_to_int16(decomp_data[i]);
-            for (int j = 0; j < 16; j++)
-            {
-                printf("ch: %d %d\n", i, (int)decomp_data[i][j]);
-            }
             src += header->channel_size[i];
             if (_debug)
             {

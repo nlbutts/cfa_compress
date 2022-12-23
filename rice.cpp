@@ -626,10 +626,6 @@ uint32_t Rice::compress(const uint16_t * imgdata,
                 prev_pixel[index] = pixel;
                 channel_index[index]++;
             }
-            if ((index == 0) && (y == 0) && (x < 64))
-            {
-                printf("x: %d y: %d index: %d pixel: %d  diff: %d\n", x, y, index, (int)pixel, (int)channels[index][channel_index[index] - 1]);
-            }
         }
     }
 

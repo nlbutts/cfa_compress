@@ -15,9 +15,10 @@ HWAccelRice::~HWAccelRice()
 
 }
 
-std::vector<std::vector<uint8_t> > HWAccelRice::compress(uint16_t * imgdata,
-                                                         uint32_t width,
-                                                         uint32_t height)
+uint32_t HWAccelRice::compress(const uint16_t * imgdata,
+                               uint8_t * outdata,
+                               uint32_t width,
+                               uint32_t height)
 {
     unsigned int dev_index = 0;
     auto device = xrt::device(dev_index);
@@ -42,18 +43,21 @@ std::vector<std::vector<uint8_t> > HWAccelRice::compress(uint16_t * imgdata,
 
     auto output_buffer_mapped = output_buffer.map<uint8_t*>();
 
-    std::vector<std::vector<uint8_t> > output;
+    uint32_t total_comp_size = 0;
     for (int ch = 0; ch < 4; ch++)
     {
         uint8_t * ptr = output_buffer_mapped + (ch * offset);
         uint32_t * size = (uint32_t*)ptr;
+        printf("Ch: %d size: %d\n", ch, *size);
         uint8_t * src = &ptr[4];
         uint8_t * end = &ptr[4] + *size;
-        std::vector<uint8_t> ch_data(src, end);
-        output.push_back(ch_data);
+        // Copy the size
+        memcpy(outdata + (ch * 4), size, 4);
+        memcpy(outdata + total_comp_size + 16, ptr + 4, *size);
+        total_comp_size += *size;
     }
 
-    return output;
+    return total_comp_size;
 }
 
 void HWAccelRice::decompress( std::vector<uint8_t> &in,

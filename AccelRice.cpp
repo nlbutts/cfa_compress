@@ -271,13 +271,13 @@ void Rice_Compress_accel(const uint16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
 #pragma HLS DATAFLOW
-#pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=65536
-#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=262144
+#pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=307200
+#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=1228800
 
     hls::stream<uint16_t> instream;
-#pragma HLS stream variable=instream type=fifo depth=16
+#pragma HLS stream variable=instream type=fifo depth=64
     hls::stream<uint8_t>  outstream[4];
-#pragma HLS stream variable=outstream type=fifo depth=16
+#pragma HLS stream variable=outstream type=fifo depth=64
     // The first four bytes are the total size of the compressed data that follows
     hls::stream<bool> done;
 
@@ -311,7 +311,6 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
     uint32_t total_pixels = width * height;
     // Align the offset for the channels
     uint32_t offset = total_pixels / 2;
-    //uint8_t comp_data[total_pixels * 4];
     uint8_t * comp_data = new uint8_t[total_pixels * 4];
     uint32_t comp_size[4];
     printf("Total pixels: %d  offset: %d\n", total_pixels, offset);
@@ -322,8 +321,6 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
                         offset,
                         7);
     printf("Rice_Compress_accel returned\n");
-    // Put into vectors to return
-    //std::vector<std::vector<uint8_t> > output;
     uint32_t total_comp_size = 0;
     for (int ch = 0; ch < 4; ch++)
     {

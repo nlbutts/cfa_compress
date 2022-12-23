@@ -292,6 +292,11 @@ clean:
 	rm -rf $(TEMP_DIR)
 	rm -f v++*
 	rm -f vitis_analyzer*
+	rm -f *.log
+	rm -rf temp
+	rm -rf _x
+	rm -rf package_hw
+	rm -rf reports
 
 # Used by Jenkins test
 cleanall: clean
