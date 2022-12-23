@@ -21,8 +21,10 @@ void CfaComp::append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t
 
 int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
 {
+    uint32_t total_pixels = img.rows * img.cols;
+    uint8_t * comp_data = new uint8_t[total_pixels * 4];
     // This will return a vector of vectors
-    auto compdata = _rice->compress((uint16_t*)img.data, img.rows, img.cols);
+    uint32_t total_size = _rice->compress((uint16_t*)img.data, comp_data, img.rows, img.cols);
     CfaCompData header;
     header.type[0] = 'C';
     header.type[1] = 'F';
@@ -33,23 +35,19 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     header.type[6] = '1';
     header.channels = 4;
     boost::crc_32_type crc;
-    int total_pixels = img.rows * img.cols;
     crc.process_bytes(img.data, total_pixels * 2);
     header.crc = crc();
     header.width = img.cols;
     header.height = img.rows;
-    header.channel_size[0] = compdata[0].size();
-    header.channel_size[1] = compdata[1].size();
-    header.channel_size[2] = compdata[2].size();
-    header.channel_size[3] = compdata[3].size();
+    uint32_t * ch_size = (uint32_t*)comp_data;
+    header.channel_size[0] = *(ch_size    );
+    header.channel_size[1] = *(ch_size + 1);
+    header.channel_size[2] = *(ch_size + 2);
+    header.channel_size[3] = *(ch_size + 3);
     auto src = (uint8_t*)&header;
     compimg.clear();
     compimg.insert(compimg.begin(), src, src + sizeof(CfaCompData));
-
-    append_comp_channel(compimg, compdata[0]);
-    append_comp_channel(compimg, compdata[1]);
-    append_comp_channel(compimg, compdata[2]);
-    append_comp_channel(compimg, compdata[3]);
+    compimg.insert(compimg.end(), comp_data + 16, comp_data + 16 + total_size);
 
     float cr = (float)compimg.size() / (total_pixels * 2);
     cr *= 100;

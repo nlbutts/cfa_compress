@@ -3,6 +3,7 @@
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
 #include <memory.h>
+#include <stdio.h>
 
 #define RICE_HISTORY    16
 #define RICE_WORD       16
@@ -189,47 +190,6 @@ void process_data(hls::stream<uint16_t> &instream, hls::stream<uint8_t> outstrea
     _Rice_init(config[2]);
     _Rice_init(config[3]);
 
-    // rows: for (uint32_t y = 0; y < height; y++)
-    // {
-    //     cols: for (uint32_t x = 0; x < width; x++)
-    //     {
-    //         /*
-    //         This code gives us an index from 0-3.
-    //         We will get a value of 0 and 1 for even and od pixels on even lines
-    //         We will get a value of 2 and 3 for even and odd pixels on odd lines
-    //         */
-    //         int index = ((y & 1) << 1) + (x & 1);
-    //         instream.write(*indata++);
-    //         int outbytes = Rice_Compress(instream, outstream, config[index], k);
-    //         save: while (!outstream.empty())
-    //         {
-    //             offset = out_index[index] + offsets[index];
-    //             outdata[offset] = outstream.read();
-    //             out_index[index]++;
-    //         }
-    //     }
-    // }
-
-    // flush: for (ap_uint<3> i = 0; i < 4; i++)
-    // {
-    //     _Rice_flush(config[i], outstream);
-    //     while (!outstream.empty())
-    //     {
-    //         offset = out_index[i] + offsets[i];
-    //         outdata[offset] = outstream.read();
-    //         out_index[i]++;
-    //     }
-
-    //     // This was offset by 4 above for the length word.
-    //     out_index[i] -= 4;
-
-    //     offset = offsets[i];
-    //     outdata[offset    ] = (out_index[i]      ) & 0xFF;
-    //     outdata[offset + 1] = (out_index[i] >>  8) & 0xFF;
-    //     outdata[offset + 2] = (out_index[i] >> 16) & 0xFF;
-    //     outdata[offset + 3] = (out_index[i] >> 24) & 0xFF;
-    // }
-
     for (uint32_t y = 0; y < height; y++)
     {
         for (uint32_t x = 0; x < width; x++)
@@ -258,7 +218,8 @@ void save_data(hls::stream<uint8_t> outstream[4], uint8_t * outdata, uint32_t wi
         uint32_t offset = out_offset[ch] + 4;
         save: while (!outstream[ch].empty())
         {
-            outdata[offset++] = outstream[ch].read();
+            outdata[offset] = outstream[ch].read();
+            offset++;
             size++;
         }
 
@@ -281,13 +242,13 @@ void Rice_Compress_accel(const uint16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
 #pragma HLS DATAFLOW
-#pragma HLS INTERFACE m_axi port=indata bundle=gem0 depth=512
-#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=512
+#pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=512
+#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=1024
 
     hls::stream<uint16_t> instream;
-#pragma HLS stream variable=instream type=fifo depth=1024
+#pragma HLS stream variable=instream type=fifo depth=16
     hls::stream<uint8_t>  outstream[4];
-#pragma HLS stream variable=outstream type=fifo depth=1024
+#pragma HLS stream variable=outstream type=fifo depth=16
     // The first four bytes are the total size of the compressed data that follows
 
     uint32_t offsets[4];
@@ -302,9 +263,10 @@ void Rice_Compress_accel(const uint16_t* indata,
     save_data(outstream, outdata, width, height, offsets);
 }
 
-std::vector<std::vector<uint8_t> > AccelRice::compress(uint16_t * imgdata,
-                                                       uint32_t width,
-                                                       uint32_t height)
+uint32_t AccelRice::compress(const uint16_t * imgdata,
+                             uint8_t * outdata,
+                             uint32_t width,
+                             uint32_t height)
 {
 /*
 The input image data should be contiguous. But the compressed will not be.
@@ -319,31 +281,34 @@ The first 4 bytes will be the total compressed bytes to follow for a channel
     uint32_t total_pixels = width * height;
     // Align the offset for the channels
     uint32_t offset = total_pixels / 2;
-    uint8_t * comp_data = new uint8_t[total_pixels * 8];
+    uint8_t comp_data[total_pixels * 4];
     uint32_t comp_size[4];
+    printf("Total pixels: %d  offset: %d\n", total_pixels, offset);
     Rice_Compress_accel(imgdata,
                         comp_data,
                         width,
                         height,
                         offset,
                         7);
-
+    printf("Rice_Compress_accel returned\n");
     // Put into vectors to return
-    std::vector<std::vector<uint8_t> > output;
+    //std::vector<std::vector<uint8_t> > output;
+    uint32_t total_comp_size = 0;
     for (int ch = 0; ch < 4; ch++)
     {
         uint8_t * ptr = comp_data + (ch * offset);
         uint32_t * size = (uint32_t*)ptr;
+        printf("Ch: %d size: %d\n", ch, *size);
         uint8_t * src = &ptr[4];
         uint8_t * end = &ptr[4] + *size;
-        std::vector<uint8_t> comp_channel(src, end);
-        output.push_back(comp_channel);
+        // Copy the size
+        memcpy(outdata + (ch * 4), size, 4);
+        memcpy(outdata + total_comp_size + 16, ptr + 4, *size);
+        total_comp_size += *size;
     }
 
-    delete [] comp_data;
-
     // Make out as large as the input data
-    return output;
+    return total_comp_size;
 }
 
 void AccelRice::decompress( std::vector<uint8_t> &in,

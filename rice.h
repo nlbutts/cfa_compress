@@ -63,13 +63,16 @@ public:
     * input data and generates the compressed output.
     *
     * @param imgdata a pointer to the pointer to the image data
+    * @param outdata a pre-allocated buffer for the output data,
+    *                this must be at least width * height bytes
     * @param width the width of the image in pixels
     * @param height the height of the image in pixels
     * @return vector of vectors of uint8_t containing channel data
     */
-   std::vector<std::vector<uint8_t> > compress(uint16_t * imgdata,
-                                             uint32_t width,
-                                             uint32_t height);
+   uint32_t compress(const uint16_t * imgdata,
+                     uint8_t * outdata,
+                     uint32_t width,
+                     uint32_t height);
 
    /**
     * @brief This is the rice decompression method. It takes the compressed
