@@ -182,7 +182,12 @@ void load_data(const uint16_t* indata, hls::stream<uint16_t> &instream, uint32_t
     }
 }
 
-void process_data(hls::stream<uint16_t> &instream, hls::stream<uint8_t> outstream[4], uint32_t width, uint32_t height, uint16_t k)
+void process_data(hls::stream<uint16_t> &instream,
+                  hls::stream<uint8_t> outstream[4],
+                  hls::stream<bool> &done,
+                  uint32_t width,
+                  uint32_t height,
+                  uint16_t k)
 {
     rice_bitstream_t config[4];
     _Rice_init(config[0]);
@@ -206,27 +211,51 @@ void process_data(hls::stream<uint16_t> &instream, hls::stream<uint8_t> outstrea
     {
         _Rice_flush(config[ch], outstream[ch]);
     }
+    done.write(1);
 }
 
 
 
-void save_data(hls::stream<uint8_t> outstream[4], uint8_t * outdata, uint32_t width, uint32_t height, uint32_t out_offset[4])
+void save_data(hls::stream<uint8_t> outstream[4],
+               hls::stream<bool> &done,
+               uint8_t * outdata,
+               uint32_t width,
+               uint32_t height,
+               uint32_t out_offset[4])
 {
+    uint32_t size[4];
+    uint32_t offset[4];
+
     for (uint8_t ch = 0; ch < 4; ch++)
     {
-        uint32_t size = 0;
-        uint32_t offset = out_offset[ch] + 4;
-        save: while (!outstream[ch].empty())
-        {
-            outdata[offset] = outstream[ch].read();
-            offset++;
-            size++;
-        }
+        size[ch] = 0;
+        offset[ch] = out_offset[ch] + 4;
+    }
 
-        outdata[out_offset[ch]    ] = (size      ) & 0xFF;
-        outdata[out_offset[ch] + 1] = (size >>  8) & 0xFF;
-        outdata[out_offset[ch] + 2] = (size >> 16) & 0xFF;
-        outdata[out_offset[ch] + 3] = (size >> 24) & 0xFF;
+    bool run = true;
+    while (run)
+    {
+        for (uint8_t ch = 0; ch < 4; ch++)
+        {
+            save: while (!outstream[ch].empty())
+            {
+                outdata[offset[ch]++] = outstream[ch].read();
+                size[ch]++;
+            }
+        }
+        if (!done.empty())
+        {
+            (void)done.read();
+            run = false;
+        }
+    }
+
+    for (uint8_t ch = 0; ch < 4; ch++)
+    {
+        outdata[out_offset[ch]    ] = (size[ch]      ) & 0xFF;
+        outdata[out_offset[ch] + 1] = (size[ch] >>  8) & 0xFF;
+        outdata[out_offset[ch] + 2] = (size[ch] >> 16) & 0xFF;
+        outdata[out_offset[ch] + 3] = (size[ch] >> 24) & 0xFF;
     }
 }
 
@@ -250,6 +279,7 @@ void Rice_Compress_accel(const uint16_t* indata,
     hls::stream<uint8_t>  outstream[4];
 #pragma HLS stream variable=outstream type=fifo depth=16
     // The first four bytes are the total size of the compressed data that follows
+    hls::stream<bool> done;
 
     uint32_t offsets[4];
     offsets[0] = 0;
@@ -259,8 +289,8 @@ void Rice_Compress_accel(const uint16_t* indata,
     offsets[3] = offsets[1] + offsets[2];
 
     load_data(indata, instream, width, height);
-    process_data(instream, outstream, width, height, k);
-    save_data(outstream, outdata, width, height, offsets);
+    process_data(instream, outstream, done, width, height, k);
+    save_data(outstream, done, outdata, width, height, offsets);
 }
 
 uint32_t AccelRice::compress(const uint16_t * imgdata,
