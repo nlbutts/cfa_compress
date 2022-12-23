@@ -55,6 +55,8 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     printf("Compressed size: %d  Uncompressed size: %d  Ratio: %0.1f%%\n",
            (int)compimg.size(), total_pixels * 2, cr);
 
+    delete [] comp_data;
+
     return compimg.size();
 }
 
@@ -104,7 +106,15 @@ int CfaComp::decompress(std::vector<uint8_t> &compimg, cv::Mat &outimg)
         {
             std::vector<uint8_t> temp(src, src + header->channel_size[i]);
             _rice->decompress(temp, decomp_data[i], uncompressed_size);
+            for (int j = 0; j < 16; j++)
+            {
+                printf("ch: %d %d\n", i, (int)decomp_data[i][j]);
+            }
             diff_to_int16(decomp_data[i]);
+            for (int j = 0; j < 16; j++)
+            {
+                printf("ch: %d %d\n", i, (int)decomp_data[i][j]);
+            }
             src += header->channel_size[i];
             if (_debug)
             {

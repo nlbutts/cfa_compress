@@ -40,6 +40,7 @@ int main(int argc, char ** argv)
     cv::Mat inimg;
     cv::Mat outimg;
     inimg = cv::imread(argv[1], -1);
+    printf("Is image Contiguous: %d\n", (int)inimg.isContinuous());
     std::vector<uint8_t> comp_data;
     {
         Timeit comptime("Compression time");
