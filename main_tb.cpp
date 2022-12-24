@@ -39,6 +39,7 @@ int main(int argc, char ** argv)
 
     cv::Mat inimg;
     cv::Mat outimg;
+    cv::Mat outimg2;
     inimg = cv::imread(argv[1], -1);
     printf("Is image Contiguous: %d\n", (int)inimg.isContinuous());
     std::vector<uint8_t> comp_data;
@@ -91,11 +92,11 @@ int main(int argc, char ** argv)
     }
     {
         Timeit comptime("Decompression time");
-        cfaComp.decompress(comp_data, outimg);
+        cfaComp.decompress(comp_data, outimg2);
     }
 
-    cv::imwrite("ref2.png", outimg);
-    cfaComp3.compare_images(inimg, outimg);
+    cv::imwrite("ref2.png", outimg2);
+    cfaComp3.compare_images(inimg, outimg2);
     cfaComp3.save_vector<uint8_t>("comp3.cfa", comp_data);
 
 #endif
