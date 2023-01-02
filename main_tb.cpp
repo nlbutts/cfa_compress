@@ -43,6 +43,7 @@ int main(int argc, char ** argv)
     inimg = cv::imread(argv[1], -1);
     printf("Is image Contiguous: %d\n", (int)inimg.isContinuous());
     std::vector<uint8_t> comp_data;
+    std::vector<uint8_t> comp_data2;
     {
         Timeit comptime("Compression time");
         cfaComp.compress(inimg, comp_data);
@@ -85,9 +86,11 @@ int main(int argc, char ** argv)
     CfaComp cfaComp3(accelrice);
 
     comp_data.clear();
+    comp_data2.clear();
     {
         Timeit comptime("HW Accel Total Compression time");
         cfaComp3.compress(inimg, comp_data);
+        cfaComp3.compress(inimg, comp_data2);
         comptime.print();
     }
     {
@@ -95,9 +98,19 @@ int main(int argc, char ** argv)
         cfaComp.decompress(comp_data, outimg2);
     }
 
+    for (int y = 0; y < 2; y++)
+    {
+        for (int x = 0; x < 8; x++)
+        {
+            printf("%d/%d ", inimg.at<uint16_t>(y, x), outimg2.at<uint16_t>(y, x));
+        }
+        printf("\n");
+    }
+
     cv::imwrite("ref2.png", outimg2);
     cfaComp3.compare_images(inimg, outimg2);
     cfaComp3.save_vector<uint8_t>("comp3.cfa", comp_data);
+    cfaComp3.save_vector<uint8_t>("comp4.cfa", comp_data2);
 
 #endif
 

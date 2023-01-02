@@ -171,39 +171,54 @@ int Rice_Compress(hls::stream<uint16_t> &indata,
     return out_bytes;
 }
 
-void load_data(const uint16_t* indata, hls::stream<uint16_t> &instream, uint32_t width, uint32_t height)
+void load_data(const uint16_t* indata, hls::stream<uint16_t> instream[4], uint32_t width, uint32_t height, hls::stream<bool> &done)
 {
     for (uint32_t y = 0; y < height; y++)
     {
         for (uint32_t x = 0; x < width; x++)
         {
-            instream.write(indata[(y * width) + x]);
+            uint8_t index = ((y & 1) << 1) + (x & 1);
+            instream[index].write(indata[(y * width) + x]);
         }
     }
+    done.write(1);
 }
 
-void process_data(hls::stream<uint16_t> &instream,
+void process_data(hls::stream<uint16_t> instream[4],
                   hls::stream<uint8_t> outstream[4],
-                  hls::stream<bool> &done,
-                  uint32_t width,
-                  uint32_t height,
-                  uint16_t k)
+                  uint16_t k,
+                  hls::stream<bool> &done_loading,
+                  hls::stream<bool> &done_processing,
+                  hls::stream<bool> &start)
 {
     rice_bitstream_t config[4];
-    _Rice_init(config[0]);
-    _Rice_init(config[1]);
-    _Rice_init(config[2]);
-    _Rice_init(config[3]);
 
-    for (uint32_t y = 0; y < height; y++)
+    if (!start.empty())
     {
-        for (uint32_t x = 0; x < width; x++)
+        bool value = start.read();
+        if (value)
         {
-            if (!instream.empty())
-            {
-                uint8_t index = ((y & 1) << 1) + (x & 1);
-                int outbytes = Rice_Compress(instream, outstream[index], config[index], k);
-            }
+            _Rice_init(config[0]);
+            _Rice_init(config[1]);
+            _Rice_init(config[2]);
+            _Rice_init(config[3]);
+        }
+    }
+
+    while (done_loading.empty())
+    {
+        for (uint8_t ch = 0; ch < 4; ch++)
+        {
+            int outbytes = Rice_Compress(instream[ch], outstream[ch], config[ch], k);
+        }
+    }
+
+    // Done could be set pretty early. So now empty the instream
+    for (uint8_t ch = 0; ch < 4; ch++)
+    {
+        while (!instream[ch].empty())
+        {
+            int outbytes = Rice_Compress(instream[ch], outstream[ch], config[ch], k);
         }
     }
 
@@ -211,17 +226,14 @@ void process_data(hls::stream<uint16_t> &instream,
     {
         _Rice_flush(config[ch], outstream[ch]);
     }
-    done.write(1);
+    (void)done_loading.read();
+    done_processing.write(1);
 }
 
-
-
 void save_data(hls::stream<uint8_t> outstream[4],
-               hls::stream<bool> &done,
                uint8_t * outdata,
-               uint32_t width,
-               uint32_t height,
-               uint32_t out_offset[4])
+               uint32_t out_offset[4],
+               hls::stream<bool> &done_processing)
 {
     uint32_t size[4];
     uint32_t offset[4];
@@ -233,7 +245,7 @@ void save_data(hls::stream<uint8_t> outstream[4],
     }
 
     bool run = true;
-    while (run)
+    while (done_processing.empty())
     {
         for (uint8_t ch = 0; ch < 4; ch++)
         {
@@ -242,11 +254,6 @@ void save_data(hls::stream<uint8_t> outstream[4],
                 outdata[offset[ch]++] = outstream[ch].read();
                 size[ch]++;
             }
-        }
-        if (!done.empty())
-        {
-            (void)done.read();
-            run = false;
         }
     }
 
@@ -263,6 +270,8 @@ void save_data(hls::stream<uint8_t> outstream[4],
         outdata[out_offset[ch] + 2] = (size[ch] >> 16) & 0xFF;
         outdata[out_offset[ch] + 3] = (size[ch] >> 24) & 0xFF;
     }
+
+    (void)done_processing.read();
 }
 
 void Rice_Compress_accel(const uint16_t* indata,
@@ -270,7 +279,7 @@ void Rice_Compress_accel(const uint16_t* indata,
                          uint32_t width,
                          uint32_t height,
                          uint32_t out_offset,
-                         int k )
+                         int k)
 {
 #pragma HLS INTERFACE mode=s_axilite port=width
 #pragma HLS INTERFACE mode=s_axilite port=height
@@ -280,12 +289,16 @@ void Rice_Compress_accel(const uint16_t* indata,
 #pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=307200
 #pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=1228800
 
-    hls::stream<uint16_t> instream;
+    hls::stream<uint16_t> instream[4];
 #pragma HLS stream variable=instream type=fifo depth=64
     hls::stream<uint8_t>  outstream[4];
 #pragma HLS stream variable=outstream type=fifo depth=64
     // The first four bytes are the total size of the compressed data that follows
-    hls::stream<bool> done;
+    hls::stream<bool> start;
+    hls::stream<bool> done_loading;
+    hls::stream<bool> done_processing;
+
+    start.write(1);
 
     uint32_t offsets[4];
     offsets[0] = 0;
@@ -294,9 +307,9 @@ void Rice_Compress_accel(const uint16_t* indata,
     // This is to avoid a multiply
     offsets[3] = offsets[1] + offsets[2];
 
-    load_data(indata, instream, width, height);
-    process_data(instream, outstream, done, width, height, k);
-    save_data(outstream, done, outdata, width, height, offsets);
+    load_data(indata, instream, width, height, done_loading);
+    process_data(instream, outstream, k, done_loading, done_processing, start);
+    save_data(outstream, outdata, offsets, done_processing);
 }
 
 uint32_t AccelRice::compress(const uint16_t * imgdata,

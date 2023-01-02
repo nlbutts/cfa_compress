@@ -26,6 +26,8 @@ uint32_t HWAccelRice::compress(const uint16_t * imgdata,
     std::cout << "device name:     " << device.get_info<xrt::info::device::name>() << "\n";
     std::cout << "device bdf:      " << device.get_info<xrt::info::device::bdf>() << "\n";
 
+    uint32_t bits = 0;
+
     auto krnl = xrt::kernel(device, uuid, "Rice_Compress_accel");
 
     auto arg0 = krnl.group_id(0);
@@ -34,14 +36,19 @@ uint32_t HWAccelRice::compress(const uint16_t * imgdata,
     auto input_buffer = xrt::bo(device, width * height * 2, arg0);
     auto output_buffer = xrt::bo(device, width * height * 2, arg1);
 
-    auto input_buffer_mapped = input_buffer.map<void*>();
-    memcpy(input_buffer_mapped, imgdata, width * height * 2);
+    //auto input_buffer_mapped = input_buffer.map<void*>();
+    input_buffer.write((const void*)imgdata);
+    //memcpy(input_buffer_mapped, imgdata, width * height * 2);
+    input_buffer.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
     int offset = width * height / 2;
-    auto run = krnl(input_buffer, output_buffer, width, height, offset, 7);
+    auto run = krnl(input_buffer, output_buffer, width, height, offset, 7, bits);
     run.wait();
 
+    printf("Bits: %08X\n", bits);
+
     auto output_buffer_mapped = output_buffer.map<uint8_t*>();
+    output_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 
     uint32_t total_comp_size = 0;
     for (int ch = 0; ch < 4; ch++)
