@@ -64,19 +64,23 @@ int main(int argc, char ** argv)
     CfaComp cfaComp2(accelrice);
 
     comp_data.clear();
+    comp_data2.clear();
     {
         Timeit comptime("Accel Compression time");
         cfaComp2.compress(inimg, comp_data);
+        cfaComp2.compress(inimg, comp_data2);
         comptime.print();
     }
     {
         Timeit comptime("Decompression time");
         cfaComp.decompress(comp_data, outimg);
+        cfaComp.decompress(comp_data, outimg2);
         comptime.print();
     }
 
     cv::imwrite("ref2.png", outimg);
     cfaComp2.compare_images(inimg, outimg);
+    cfaComp2.compare_images(inimg, outimg2);
     cfaComp2.save_vector<uint8_t>("comp2.cfa", comp_data);
 
 #endif

@@ -286,8 +286,8 @@ void Rice_Compress_accel(const uint16_t* indata,
 #pragma HLS INTERFACE mode=s_axilite port=out_offset
 #pragma HLS INTERFACE mode=s_axilite port=k
 #pragma HLS DATAFLOW
-#pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=307200
-#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=1228800
+#pragma HLS INTERFACE mode=m_axi port=indata bundle=gem0 depth=8192
+#pragma HLS INTERFACE mode=m_axi port=outdata bundle=gem1 depth=16384
 
     hls::stream<uint16_t> instream[4];
 #pragma HLS stream variable=instream type=fifo depth=64
