@@ -94,7 +94,6 @@ int main(int argc, char ** argv)
     {
         Timeit comptime("HW Accel Total Compression time");
         cfaComp3.compress(inimg, comp_data);
-        cfaComp3.compress(inimg, comp_data2);
         comptime.print();
     }
     {
@@ -114,7 +113,6 @@ int main(int argc, char ** argv)
     cv::imwrite("ref2.png", outimg2);
     cfaComp3.compare_images(inimg, outimg2);
     cfaComp3.save_vector<uint8_t>("comp3.cfa", comp_data);
-    cfaComp3.save_vector<uint8_t>("comp4.cfa", comp_data2);
 
 #endif
 
