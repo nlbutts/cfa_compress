@@ -102,8 +102,7 @@
 *************************************************************************/
 
 #include "rice.h"
-#include "timeit.h"
-
+#include <stdio.h>
 
 /*************************************************************************
 * Constants used for Rice coding
@@ -593,16 +592,61 @@ Rice::~Rice()
     // Do nothing
 }
 
-int Rice::compress( std::vector<int16_t> &in,
-                    std::vector<uint8_t> &out)
+uint32_t Rice::compress(const uint16_t * imgdata,
+                        uint8_t * outdata,
+                        uint32_t width,
+                        uint32_t height)
 {
-    Timeit t("SW Rice Compress");
+    int total_pixels = width * height;
+    std::vector<int16_t> channels[4];
+    int channel_index[4] = {0};
+
+    for (int i = 0; i < 4; i++)
+    {
+        channels[i].resize(total_pixels / 4);
+    }
+
+    // Split the bayer image into RGGB planes
+    uint16_t prev_pixel[4];
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int index = ((y & 1) << 1) + (x & 1);
+            uint16_t pixel = imgdata[(y * width) + x];
+            if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
+            {
+                channels[index][channel_index[index]] = pixel;
+                prev_pixel[index] = pixel;
+                channel_index[index]++;
+            }
+            else
+            {
+                channels[index][channel_index[index]] = pixel - prev_pixel[index];
+                prev_pixel[index] = pixel;
+                channel_index[index]++;
+            }
+        }
+    }
+
+    // Now compress
+    uint32_t total_comp_size = 0;
+    for (int ch = 0; ch < 4; ch++)
+    {
+        int comp_size = Rice_Compress((void*)channels[ch].data(),
+                                      (void*)(outdata + total_comp_size + 16),
+                                      channels[ch].size() * 2,
+                                      RICE_FMT_INT16);
+        total_comp_size += comp_size;
+        uint32_t * size = (uint32_t*)(outdata + (4 * ch));
+        *size = comp_size;
+        // printf("size: %d  comp_size: %d\n",
+        //         (int)channels[ch].size() * 2,
+        //         comp_size[ch]);
+    }
+
     // Make out as large as the input data
-    out.resize(in.size() * 2);
-    int outsize = Rice_Compress(in.data(), out.data(), in.size() * 2, RICE_FMT_INT16);
-    out.resize(outsize);
-    t.print();
-    return outsize;
+    return total_comp_size;
 }
 
 void Rice::decompress( std::vector<uint8_t> &in,

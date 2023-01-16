@@ -39,15 +39,20 @@ int main(int argc, char ** argv)
 
     cv::Mat inimg;
     cv::Mat outimg;
+    cv::Mat outimg2;
     inimg = cv::imread(argv[1], -1);
+    printf("Is image Contiguous: %d\n", (int)inimg.isContinuous());
     std::vector<uint8_t> comp_data;
+    std::vector<uint8_t> comp_data2;
     {
         Timeit comptime("Compression time");
         cfaComp.compress(inimg, comp_data);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");
         cfaComp.decompress(comp_data, outimg);
+        comptime.print();
     }
 
     cv::imwrite("ref.png", outimg);
@@ -59,17 +64,23 @@ int main(int argc, char ** argv)
     CfaComp cfaComp2(accelrice);
 
     comp_data.clear();
+    comp_data2.clear();
     {
         Timeit comptime("Accel Compression time");
         cfaComp2.compress(inimg, comp_data);
+        cfaComp2.compress(inimg, comp_data2);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");
         cfaComp.decompress(comp_data, outimg);
+        cfaComp.decompress(comp_data, outimg2);
+        comptime.print();
     }
 
     cv::imwrite("ref2.png", outimg);
     cfaComp2.compare_images(inimg, outimg);
+    cfaComp2.compare_images(inimg, outimg2);
     cfaComp2.save_vector<uint8_t>("comp2.cfa", comp_data);
 
 #endif
@@ -79,17 +90,28 @@ int main(int argc, char ** argv)
     CfaComp cfaComp3(accelrice);
 
     comp_data.clear();
+    comp_data2.clear();
     {
         Timeit comptime("HW Accel Total Compression time");
         cfaComp3.compress(inimg, comp_data);
+        comptime.print();
     }
     {
         Timeit comptime("Decompression time");
-        cfaComp.decompress(comp_data, outimg);
+        cfaComp.decompress(comp_data, outimg2);
     }
 
-    cv::imwrite("ref2.png", outimg);
-    cfaComp3.compare_images(inimg, outimg);
+    for (int y = 0; y < 2; y++)
+    {
+        for (int x = 0; x < 8; x++)
+        {
+            printf("%d/%d ", inimg.at<uint16_t>(y, x), outimg2.at<uint16_t>(y, x));
+        }
+        printf("\n");
+    }
+
+    cv::imwrite("ref2.png", outimg2);
+    cfaComp3.compare_images(inimg, outimg2);
     cfaComp3.save_vector<uint8_t>("comp3.cfa", comp_data);
 
 #endif

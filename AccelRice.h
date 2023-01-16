@@ -17,15 +17,20 @@ public:
     AccelRice() {};
     virtual ~AccelRice() {};
     /**
-     * @brief This is the rice compression method. It takes a signed int16
-     * input data and generates the compressed output.
-     *
-     * @param in a reference to the int16 input data
-     * @param out a reference to the uint8 output data
-     * @return int the size of the output data
-     */
-    int compress( std::vector<int16_t> &in,
-                  std::vector<uint8_t> &out);
+        * @brief This is the rice compression method. It takes a signed int16
+        * input data and generates the compressed output.
+        *
+        * @param imgdata a pointer to the pointer to the image data
+        * @param outdata a pre-allocated buffer for the output data,
+        *                this must be at least width * height bytes
+        * @param width the width of the image in pixels
+        * @param height the height of the image in pixels
+        * @return vector of vectors of uint8_t containing channel data
+        */
+    uint32_t compress(const uint16_t * imgdata,
+                      uint8_t * outdata,
+                      uint32_t width,
+                      uint32_t height);
 
     /**
      * @brief THIS IS NOT IMPLEMENTED

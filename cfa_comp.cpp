@@ -21,49 +21,10 @@ void CfaComp::append_comp_channel(std::vector<uint8_t> &pkg, std::vector<uint8_t
 
 int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
 {
-    int total_pixels = img.rows * img.cols;
-    std::vector<int16_t> channels[4];
-    std::vector<uint8_t> comp_data[4];
-    int channel_index[4] = {0};
-
-    for (int i = 0; i < 4; i++)
-    {
-        channels[i].resize(total_pixels / 4);
-    }
-
-    // Split the bayer image into RGGB planes
-    uint16_t prev_pixel[4];
-    for (int y = 0; y < img.rows; y++)
-    {
-        for (int x = 0; x < img.cols; x++)
-        {
-            int index = ((y & 1) << 1) + (x & 1);
-            uint16_t pixel = img.at<uint16_t>(y, x);
-            if (((y == 0) && (x <= 1)) || ((y == 1) && (x <= 1)))
-            {
-                channels[index][channel_index[index]] = pixel;
-                prev_pixel[index] = pixel;
-                channel_index[index]++;
-            }
-            else
-            {
-                channels[index][channel_index[index]] = pixel - prev_pixel[index];
-                prev_pixel[index] = pixel;
-                channel_index[index]++;
-            }
-        }
-    }
-
-    // Now compress
-    int comp_size[4];
-    for (int ch = 0; ch < 4; ch++)
-    {
-        comp_size[ch] = _rice->compress(channels[ch], comp_data[ch]);
-        // printf("size: %d  comp_size: %d\n",
-        //         (int)channels[ch].size() * 2,
-        //         comp_size[ch]);
-    }
-
+    uint32_t total_pixels = img.rows * img.cols;
+    uint8_t * comp_data = new uint8_t[total_pixels * 4];
+    // This will return a vector of vectors
+    uint32_t total_size = _rice->compress((uint16_t*)img.data, comp_data, img.cols, img.rows);
     CfaCompData header;
     header.type[0] = 'C';
     header.type[1] = 'F';
@@ -78,24 +39,23 @@ int CfaComp::compress(cv::Mat &img, std::vector<uint8_t> &compimg)
     header.crc = crc();
     header.width = img.cols;
     header.height = img.rows;
-    header.channel_size[0] = comp_size[0];
-    header.channel_size[1] = comp_size[1];
-    header.channel_size[2] = comp_size[2];
-    header.channel_size[3] = comp_size[3];
+    uint32_t * ch_size = (uint32_t*)comp_data;
+    header.channel_size[0] = *(ch_size    );
+    header.channel_size[1] = *(ch_size + 1);
+    header.channel_size[2] = *(ch_size + 2);
+    header.channel_size[3] = *(ch_size + 3);
     auto src = (uint8_t*)&header;
     compimg.clear();
     compimg.insert(compimg.begin(), src, src + sizeof(CfaCompData));
-
-    append_comp_channel(compimg, comp_data[0]);
-    append_comp_channel(compimg, comp_data[1]);
-    append_comp_channel(compimg, comp_data[2]);
-    append_comp_channel(compimg, comp_data[3]);
+    compimg.insert(compimg.end(), comp_data + 16, comp_data + 16 + total_size);
 
     float cr = (float)compimg.size() / (total_pixels * 2);
     cr *= 100;
 
     printf("Compressed size: %d  Uncompressed size: %d  Ratio: %0.1f%%\n",
            (int)compimg.size(), total_pixels * 2, cr);
+
+    delete [] comp_data;
 
     return compimg.size();
 }
@@ -213,7 +173,11 @@ int CfaComp::load_file(std::string filename, std::vector<uint8_t> &data)
         long size = ftell(f);
         data.resize(size);
         fseek(f, 0, SEEK_CUR);
-        fread(data.data(), 1, size, f);
+        auto read_size = fread(data.data(), 1, size, f);
+        if (size != read_size)
+        {
+            printf("Error reading file\n");
+        }
         fclose(f);
     }
     else
