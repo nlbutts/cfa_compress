@@ -86,9 +86,9 @@ There is opporuntity to improve the software performance.
 The image below shows the API execution times for the XRT portion. The run and
 wait times are how long it takes to run the accelerator.
 
-![XRT API times!](docs/api_performance.png)
+![XRT API times](docs/api_performance.png "XRT API times")
 
 Below is a timeline trace. You can see the reads are perforrmed in bursts.
 But the writes are written out in a sort of burst method.
 
-![timeline!](docs/timeline_trace.png)
+![timeline trace](docs/timeline_trace.png "timeline trace")
